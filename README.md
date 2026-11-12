@@ -20,6 +20,8 @@
 
 <br/>
 
+> **This is a community fork** of Pixel Agents (based on v1.6.0) that adds read-only Codex support, honest reported/guessed statuses, a click-for-details agent panel, per-browser filtering and hiding, room purposes (rest, waiting, planning) and LAN-safe redaction for watching many sessions at once. See **[FORK.md](FORK.md)** for what it adds and how to run it. Not affiliated with the upstream project. All credit for Pixel Agents goes to its authors.
+
 Pixel Agents turns the AI coding agents running in your terminals into animated pixel-art characters working in a tiny office. They walk to their desks, sit down, type when they're editing files, read when they're searching, and flag you visually when they're stuck waiting for input. The office is also where you run them: launch an agent into a project, pick its character, and see how much context it has left.
 
 It ships in two forms from the same codebase:
