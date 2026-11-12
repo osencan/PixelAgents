@@ -56,6 +56,7 @@ import { exportLayoutToFile } from './office/layout/exportLayout.js';
 import { isRotatable } from './office/layout/furnitureCatalog.js';
 import { migrateLayoutColors } from './office/layout/layoutSerializer.js';
 import { overlayProjection } from './office/projection.js';
+import { resolveRoomPolicy } from './office/roomPolicy.js';
 import { getPetCount } from './office/sprites/petSpriteData.js';
 import { EditTool, type OfficeLayout, TILE_SIZE } from './office/types.js';
 import { isBrowserRuntime, isE2E } from './runtime.js';
@@ -714,6 +715,9 @@ function App() {
                   onRenameArea={editor.handleRenameArea}
                   onAreaColorChange={editor.handleAreaColorChange}
                   onAreaMappingChange={handleAreaMappingChange}
+                  roomPolicy={resolveRoomPolicy(officeState.getLayout())}
+                  onAreaPurposeChange={editor.handleAreaPurposeChange}
+                  onRoomPolicyChange={editor.handleRoomPolicyChange}
                 />
               );
             })()}

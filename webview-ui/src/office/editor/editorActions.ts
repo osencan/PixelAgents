@@ -4,9 +4,11 @@ import { getCatalogEntry, getRotatedType, getToggledType } from '../layout/furni
 import { getPlacementBlockedTiles } from '../layout/layoutSerializer.js';
 import type {
   AreaDefinition,
+  AreaPurpose,
   CarpetTile,
   OfficeLayout,
   PlacedFurniture,
+  RoomPolicy,
   TileType as TileTypeVal,
 } from '../types.js';
 import { MAX_COLS, MAX_ROWS, TileType } from '../types.js';
@@ -702,6 +704,31 @@ export function renameArea(layout: OfficeLayout, oldLabel: string, newLabel: str
     areaTiles = areaTiles.map((t) => (t === oldLabel ? trimmed : t));
   }
   return { ...layout, areas, areaTiles };
+}
+
+/** Set what an Area is for. No-op if the area doesn't exist or the purpose is unchanged. */
+export function setAreaPurpose(
+  layout: OfficeLayout,
+  label: string,
+  purpose: AreaPurpose,
+): OfficeLayout {
+  const existing = layout.areas ?? [];
+  const area = existing.find((a) => a.label === label);
+  if (!area || area.purpose === purpose) return layout;
+  return {
+    ...layout,
+    areas: existing.map((a) => (a.label === label ? { ...a, purpose } : a)),
+  };
+}
+
+/** Merge a change into the room policy. No-op when nothing changes. */
+export function updateRoomPolicy(layout: OfficeLayout, change: RoomPolicy): OfficeLayout {
+  const current = layout.roomPolicy ?? {};
+  const next = { ...current, ...change };
+  if (next.sleepAfterMin === current.sleepAfterMin && next.waitingMode === current.waitingMode) {
+    return layout;
+  }
+  return { ...layout, roomPolicy: next };
 }
 
 /** Update an Area's display color. No-op if the area doesn't exist or color is unchanged. */

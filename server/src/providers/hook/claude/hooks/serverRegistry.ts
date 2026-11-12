@@ -15,7 +15,13 @@ import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
 
-import { SERVER_JSON_DIR, SERVER_JSON_NAME, SERVERS_DIR } from '../../../../constants.js';
+import {
+  LOOPBACK_HOSTNAMES,
+  SERVER_JSON_DIR,
+  SERVER_JSON_NAME,
+  SERVERS_DIR,
+  WILDCARD_HOSTNAMES,
+} from '../../../../constants.js';
 import type { ServerConfig, ServerTarget } from '../../../../serverConfig.js';
 import { isServerConfig, isServerTarget } from '../../../../serverConfig.js';
 
@@ -97,6 +103,21 @@ export function liveServers(debug: ScriptDebug, label: string): ServerTarget[] |
   }
 }
 
+/**
+ * The address to reach a server at from this machine: loopback, unless a
+ * standalone server is bound to one specific address (e.g. `--host
+ * 192.168.1.20` for LAN viewing), where loopback is refused.
+ */
+export function deliveryHost(server: ServerTarget | ServerConfig): string {
+  const bound = 'standalone' in server ? server.standalone?.host : undefined;
+  const name = (bound ?? '')
+    .trim()
+    .replace(/^\[|\]$/g, '')
+    .toLowerCase();
+  const anyOrLoopback: readonly string[] = [...LOOPBACK_HOSTNAMES, ...WILDCARD_HOSTNAMES];
+  return name && !anyOrLoopback.includes(name) ? name : '127.0.0.1';
+}
+
 /** One delivery: where it goes on the server, what it carries, how it is
  *  named in the debug log, and how long to wait. */
 export interface ServerPost {
@@ -115,12 +136,12 @@ export interface ServerPost {
  */
 export function postToServer(server: ServerTarget, post: ServerPost): Promise<void> {
   const { path: urlPath, body, label, debug, timeoutMs } = post;
-  debug(`POST ${label} port=${server.port}`);
+  debug(`POST ${label} port=${server.port} host=${deliveryHost(server)}`);
   return new Promise((resolve) => {
     try {
       const req = http.request(
         {
-          hostname: '127.0.0.1',
+          hostname: deliveryHost(server),
           port: server.port,
           path: urlPath,
           method: 'POST',

@@ -144,7 +144,9 @@ export function AgentDetailPanel({
       )}
 
       <div className="flex flex-col gap-4">
-        <Row label="Doing">{activity}</Row>
+        <Row label="Doing">
+          {officeState.isAsleep(agentId, now) ? 'Sleeping in the rest room' : activity}
+        </Row>
         {life && (
           <Row label="State">
             {lifecycleText(life.lifecycle)}

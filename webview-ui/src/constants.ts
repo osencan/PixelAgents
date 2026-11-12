@@ -893,3 +893,15 @@ export const HIDDEN_AGENT_CARD_OPACITY = 0.4;
 export const AGENT_FILTER_STORAGE_KEY = 'pixel-agents.agentFilter';
 /** Height class of the bottom toolbar's button row (shared by its trailing filter). */
 export const TOOLBAR_ROW_HEIGHT_CLASS = 'h-52';
+
+// ── Room purposes ──────────────────────────────────────────
+/** Default minutes of reported idle in the rest room before an agent sleeps. */
+export const ROOM_SLEEP_AFTER_MIN_DEFAULT = 5;
+/** Choices offered for the sleep delay (minutes; 0 = never). */
+export const ROOM_SLEEP_AFTER_MIN_OPTIONS = [0, 2, 5, 10, 15, 30];
+/** Legacy name convention migrated to purpose 'rest'. */
+export const REST_AREA_LABEL_PATTERN = /^rest(?: room)?$/i;
+/** Pre-purpose fallback rest area for the original four-room layout. */
+export const LEGACY_REST_AREA_LABEL = 'Blue Room';
+/** Seconds before a character that found no free, reachable room tile tries again. */
+export const ROOM_RESERVATION_RETRY_SEC = 2;

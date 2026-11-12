@@ -140,11 +140,24 @@ export interface CarpetTile {
 // AREAS — translucent named overlays for Directory ↔ seat preference.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** What an Area is for. Behavior follows the purpose, never the label. */
+export type AreaPurpose = 'work' | 'rest' | 'waiting' | 'planning';
+
 export interface AreaDefinition {
   /** Stable label used as the FK in `areaTiles` and `OfficeState.areaMappings`. */
   label: string;
   /** Hex color (e.g. "#ff6b6b"). RGB only — alpha applied at render time. */
   color: string;
+  /** Absent = work (layouts from before purposes; Rest-named areas migrate to rest). */
+  purpose?: AreaPurpose;
+}
+
+/** How rooms with a purpose are used. Absent fields take the defaults in constants.ts. */
+export interface RoomPolicy {
+  /** Minutes of reported idle in the rest room before an agent sleeps; 0 = never. */
+  sleepAfterMin?: number;
+  /** Reported permission waits: a badge at the desk, or a walk to the waiting room. */
+  waitingMode?: 'badge' | 'area';
 }
 
 export interface OfficeLayout {
@@ -165,6 +178,8 @@ export interface OfficeLayout {
   areas?: AreaDefinition[];
   /** Per-tile Area label, parallel to tiles array. null = no area assignment. */
   areaTiles?: Array<string | null>;
+  /** Rest/waiting room behavior. */
+  roomPolicy?: RoomPolicy;
 }
 
 /** A blink clock (office/engine/blink.ts drives it). */

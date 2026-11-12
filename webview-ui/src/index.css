@@ -309,6 +309,12 @@
     animation: approval-beacon 1s steps(2, jump-none) infinite;
   }
 
+  /* A sleeping agent's floating Zz (rest room, after the sleep delay). */
+  .sleep-zz {
+    color: var(--color-text-muted);
+    animation: sleep-zz 2.4s ease-in-out infinite;
+  }
+
   .approval-glow {
     outline: 2px solid var(--color-status-permission);
     animation: approval-beacon 1s steps(2, jump-none) infinite;
@@ -408,6 +414,18 @@
     .touch-no-scrollbar::-webkit-scrollbar {
       display: none;
     }
+  }
+}
+
+@keyframes sleep-zz {
+  0%,
+  100% {
+    transform: translate(-30%, 0);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate(-30%, -4px);
+    opacity: 1;
   }
 }
 

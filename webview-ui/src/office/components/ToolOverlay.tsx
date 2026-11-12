@@ -165,6 +165,25 @@ export function ToolOverlay({
               </div>
             </div>
           );
+        } else if (!needsApproval && officeState.isAsleep(id)) {
+          // Settled in the rest room after the sleep delay of reported idle.
+          const sleepSittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0;
+          bubbleTop =
+            project.toScreenY(ch.y + sleepSittingOff - BUBBLE_VERTICAL_OFFSET_PX) -
+            APPROVAL_BEACON_SIZE_PX;
+          bubbleNode = (
+            <div
+              className="absolute pointer-events-none sleep-zz font-bold"
+              style={{
+                left: project.toScreenX(ch.x),
+                top: bubbleTop,
+                zIndex: OVERLAY_BUBBLE_Z_INDEX,
+              }}
+              data-testid="sleep-zz"
+            >
+              z<span className="text-lg">Z</span>
+            </div>
+          );
         } else if (needsApproval) {
           // Approval flagged on a tool without a bubble: a beacon over the head.
           const beaconSittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0;
@@ -259,7 +278,8 @@ export function ToolOverlay({
           // The server's explicit lifecycle refines the tool text: silence is
           // "no recent activity", and a guessed permission wait is a hint only.
           const life = getAgentLifecycle(id);
-          if (life?.lifecycle === 'unknown') activityText = lifecycleText('unknown');
+          if (officeState.isAsleep(id)) activityText = 'Sleeping';
+          else if (life?.lifecycle === 'unknown') activityText = lifecycleText('unknown');
           else if (life?.permissionSuspected) activityText += ' · approval?';
         }
 

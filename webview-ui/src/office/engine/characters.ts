@@ -102,9 +102,12 @@ export function updateCharacter(
   tileMap: TileTypeVal[][],
   blockedTiles: Set<string>,
   restTiles: Array<{ col: number; row: number }> = [],
+  /** Route to `restTiles` even while active (a confirmed permission wait
+   *  sent to the waiting room); otherwise only idle agents are routed. */
+  routeWhileActive = false,
 ): void {
-  // Local idle-room policy: preserve the work seat and use normal pathfinding.
-  if (!ch.isActive && restTiles.length > 0) {
+  // Local room policy: preserve the work seat and use normal pathfinding.
+  if ((!ch.isActive || routeWhileActive) && restTiles.length > 0) {
     const inRoom = (tile: { col: number; row: number }) =>
       restTiles.some((rest) => rest.col === tile.col && rest.row === tile.row);
     if (inRoom({ col: ch.tileCol, row: ch.tileRow }) && ch.path.length === 0) {
@@ -120,7 +123,14 @@ export function updateCharacter(
       // Spread agents across the room and try alternatives when a tile is unreachable.
       for (let i = 0; i < restTiles.length; i++) {
         const target = restTiles[(Math.abs(ch.id) + i) % restTiles.length];
-        const route = findPath(ch.tileCol, ch.tileRow, target.col, target.row, tileMap, blockedTiles);
+        const route = findPath(
+          ch.tileCol,
+          ch.tileRow,
+          target.col,
+          target.row,
+          tileMap,
+          blockedTiles,
+        );
         if (route.length === 0) continue;
         ch.path = route;
         ch.moveProgress = 0;

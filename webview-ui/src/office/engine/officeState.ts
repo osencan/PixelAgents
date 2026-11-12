@@ -12,9 +12,11 @@ import {
   MAX_PET_ID_LENGTH,
   PET_HIT_HALF_WIDTH,
   PET_HIT_HEIGHT,
+  ROOM_RESERVATION_RETRY_SEC,
   WAITING_BUBBLE_DURATION_SEC,
 } from '../../constants.js';
 import { isFilteredOut } from '../agentFilter.js';
+import { getAgentLifecycle } from '../agentLifecycles.js';
 import { contextUsedShare } from '../contextGauge.js';
 import { isAgentHidden } from '../hiddenAgents.js';
 import { getAnimationFrames, getCatalogEntry, getOnStateType } from '../layout/furnitureCatalog.js';
@@ -27,9 +29,11 @@ import {
 } from '../layout/layoutSerializer.js';
 import { findPath, getWalkableTiles, isWalkable } from '../layout/tileMap.js';
 import { pairWorkstations } from '../layout/workstations.js';
+import { areaLabelsFor, resolveRoomPolicy } from '../roomPolicy.js';
 import { getPetCount, getPetName } from '../sprites/petSpriteData.js';
 import { getLoadedCharacterCount } from '../sprites/spriteData.js';
 import type {
+  AreaPurpose,
   Character,
   FurnitureInstance,
   OfficeLayout,
@@ -89,6 +93,12 @@ export class OfficeState {
   pets: Pet[] = [];
   /** Accumulated time for furniture animation frame cycling */
   furnitureAnimTimer = 0;
+  /** Room tile each character currently holds (rest or waiting). */
+  private roomReservations = new Map<number, { purpose: AreaPurpose; col: number; row: number }>();
+  /** Earliest roomClock at which a failed reservation is retried. */
+  private roomRetryAt = new Map<number, number>();
+  /** Seconds of simulation, for reservation retries. */
+  private roomClock = 0;
   private _selectedAgentId: number | null = null;
   private readonly selectionListeners = new Set<(id: number | null) => void>();
   get selectedAgentId(): number | null {
@@ -1218,16 +1228,10 @@ export class OfficeState {
       this.greeter = null;
     }
 
-    // Prefer explicitly named rest areas; the existing four-room layout uses Blue Room.
-    const restLabels = new Set(
-      (this.layout.areas ?? [])
-        .filter((area) => /^rest(?: room)?$/i.test(area.label.trim()))
-        .map((area) => area.label),
-    );
-    if (restLabels.size === 0) restLabels.add('Blue Room');
-    const restTiles = this.walkableTiles.filter(({ col, row }) =>
-      restLabels.has(this.layout.areaTiles?.[row * this.layout.cols + col] ?? ''),
-    );
+    this.roomClock += dt;
+    const policy = resolveRoomPolicy(this.layout);
+    const restTiles = this.purposeTiles('rest');
+    const waitingTiles = policy.waitingMode === 'area' ? this.purposeTiles('waiting') : [];
     const toDelete: number[] = [];
     for (const ch of this.characters.values()) {
       tickBlink(ch, dt, ch.state === CharacterState.TYPE);
@@ -1252,6 +1256,7 @@ export class OfficeState {
           this.blockedTiles,
         );
       } else {
+        const room = this.roomDestination(ch, restTiles, waitingTiles);
         // Temporarily unblock own seat so character can pathfind to it
         this.withOwnSeatUnblocked(ch, () =>
           updateCharacter(
@@ -1261,7 +1266,8 @@ export class OfficeState {
             this.seats,
             this.tileMap,
             this.blockedTiles,
-            restTiles,
+            room.tiles,
+            room.whileActive,
           ),
         );
       }
@@ -1274,6 +1280,9 @@ export class OfficeState {
           ch.bubbleTimer = 0;
         }
       }
+    }
+    for (const id of this.roomReservations.keys()) {
+      if (!this.characters.has(id)) this.roomReservations.delete(id);
     }
     // Remove characters that finished despawn
     for (const id of toDelete) {
@@ -1322,6 +1331,96 @@ export class OfficeState {
     const chars = Array.from(this.characters.values());
     if (this.greeter) chars.push(this.greeter);
     return chars;
+  }
+
+  // ── Room purposes ─────────────────────────────────────────
+
+  /** Walkable tiles of the areas with this purpose, minus seat tiles (a desk's
+   *  chair is its owner's, even in a rest room). */
+  private purposeTiles(purpose: AreaPurpose): Array<{ col: number; row: number }> {
+    const labels = areaLabelsFor(this.layout, purpose);
+    if (labels.size === 0) return [];
+    const seatTiles = new Set([...this.seats.values()].map((s) => `${s.seatCol},${s.seatRow}`));
+    return this.walkableTiles.filter(
+      ({ col, row }) =>
+        labels.has(this.layout.areaTiles?.[row * this.layout.cols + col] ?? '') &&
+        !seatTiles.has(`${col},${row}`),
+    );
+  }
+
+  /**
+   * Where a character's room policy sends it, as the one tile it has reserved:
+   * idle agents to the rest room; a confirmed permission wait to the waiting
+   * room (when enabled). Each character holds its own reachable tile, so none
+   * share one; a full or unreachable room leaves it at its desk.
+   */
+  private roomDestination(
+    ch: Character,
+    restTiles: Array<{ col: number; row: number }>,
+    waitingTiles: Array<{ col: number; row: number }>,
+  ): { tiles: Array<{ col: number; row: number }>; whileActive: boolean } {
+    const none = { tiles: [], whileActive: false };
+    const waiting =
+      ch.isActive &&
+      !ch.isSubagent &&
+      waitingTiles.length > 0 &&
+      getAgentLifecycle(ch.id)?.lifecycle === 'waiting_permission';
+    const purpose: AreaPurpose | null = waiting
+      ? 'waiting'
+      : !ch.isActive && restTiles.length > 0
+        ? 'rest'
+        : null;
+    if (!purpose) {
+      this.roomReservations.delete(ch.id);
+      return none;
+    }
+    const tiles = purpose === 'rest' ? restTiles : waitingTiles;
+    const whileActive = purpose === 'waiting';
+    const held = this.roomReservations.get(ch.id);
+    if (held?.purpose === purpose && tiles.some((t) => t.col === held.col && t.row === held.row)) {
+      return { tiles: [{ col: held.col, row: held.row }], whileActive };
+    }
+    this.roomReservations.delete(ch.id);
+    if ((this.roomRetryAt.get(ch.id) ?? 0) > this.roomClock) return none;
+    const taken = new Set([...this.roomReservations.values()].map((r) => `${r.col},${r.row}`));
+    for (let i = 0; i < tiles.length; i++) {
+      // Spread characters across the room rather than queueing on one tile.
+      const t = tiles[(Math.abs(ch.id) + i) % tiles.length];
+      if (taken.has(`${t.col},${t.row}`)) continue;
+      const here = ch.tileCol === t.col && ch.tileRow === t.row;
+      if (
+        !here &&
+        findPath(ch.tileCol, ch.tileRow, t.col, t.row, this.tileMap, this.blockedTiles).length === 0
+      ) {
+        continue;
+      }
+      this.roomReservations.set(ch.id, { purpose, col: t.col, row: t.row });
+      this.roomRetryAt.delete(ch.id);
+      return { tiles: [t], whileActive };
+    }
+    this.roomRetryAt.set(ch.id, this.roomClock + ROOM_RESERVATION_RETRY_SEC);
+    return none;
+  }
+
+  /** The room tile a character holds, if any (for overlays and tests). */
+  roomReservation(id: number): { purpose: AreaPurpose; col: number; row: number } | undefined {
+    return this.roomReservations.get(id);
+  }
+
+  /** Asleep: settled on its rest-room tile after the policy's sleep delay of
+   *  REPORTED idle (an inferred idle never puts anyone to sleep). */
+  isAsleep(id: number, nowMs = Date.now()): boolean {
+    const { sleepAfterMin } = resolveRoomPolicy(this.layout);
+    if (sleepAfterMin <= 0) return false;
+    const ch = this.characters.get(id);
+    const held = this.roomReservations.get(id);
+    if (!ch || ch.isActive || held?.purpose !== 'rest') return false;
+    if (ch.tileCol !== held.col || ch.tileRow !== held.row || ch.path.length > 0) return false;
+    const life = getAgentLifecycle(id);
+    if (!life?.observed || (life.lifecycle !== 'idle' && life.lifecycle !== 'waiting_input')) {
+      return false;
+    }
+    return nowMs - life.since >= sleepAfterMin * 60_000;
   }
 
   /** Not shown to this viewer: hidden (the agent or, for subagents and

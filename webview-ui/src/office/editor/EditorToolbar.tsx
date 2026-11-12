@@ -14,6 +14,7 @@ import {
   EMPTY_SPRITE_THUMBNAIL_BG,
   PET_THUMB_SCALE_MARGIN,
   PET_THUMB_ZOOM,
+  ROOM_SLEEP_AFTER_MIN_OPTIONS,
 } from '../../constants.js';
 import { getColorizedSprite } from '../colorize.js';
 import { getColorizedFloorSprite, getFloorPatternCount, hasFloorSprites } from '../floorTiles.js';
@@ -23,6 +24,7 @@ import {
   getActiveCategories,
   getCatalogByCategory,
 } from '../layout/furnitureCatalog.js';
+import { AREA_PURPOSE_LABELS, AREA_PURPOSES, areaPurpose } from '../roomPolicy.js';
 import {
   getCarpetJunctionSprite,
   getCarpetSetCount,
@@ -30,7 +32,14 @@ import {
 } from '../sprites/carpetTiles.js';
 import { getPetName, getPetSprites } from '../sprites/petSpriteData.js';
 import { getCachedSprite } from '../sprites/spriteCache.js';
-import type { AreaDefinition, CarpetTile, SpriteData, TileType as TileTypeVal } from '../types.js';
+import type {
+  AreaDefinition,
+  AreaPurpose,
+  CarpetTile,
+  RoomPolicy,
+  SpriteData,
+  TileType as TileTypeVal,
+} from '../types.js';
 import { EditTool } from '../types.js';
 import { getWallSetCount, getWallSetPreviewSprite } from '../wallTiles.js';
 
@@ -86,9 +95,15 @@ interface EditorToolbarProps {
   onRenameArea: (oldLabel: string, newLabel: string) => void;
   onAreaColorChange: (label: string, color: string) => void;
   onAreaMappingChange: (directoryName: string, areaLabel: string, action: 'add' | 'remove') => void;
+  /** Room behavior with defaults applied. */
+  roomPolicy: Required<RoomPolicy>;
+  onAreaPurposeChange: (label: string, purpose: AreaPurpose) => void;
+  onRoomPolicyChange: (change: RoomPolicy) => void;
 }
 
 const THUMB_ZOOM = 2;
+
+const SELECT_CLASS = 'text-xs py-1 px-2 bg-bg border-2 border-border rounded-none text-text';
 
 const DEFAULT_FURNITURE_COLOR: ColorValue = { h: 0, s: 0, b: 0, c: 0 };
 
@@ -132,6 +147,9 @@ export function EditorToolbar({
   onRenameArea,
   onAreaColorChange,
   onAreaMappingChange,
+  roomPolicy,
+  onAreaPurposeChange,
+  onRoomPolicyChange,
   className = '',
 }: EditorToolbarProps) {
   const [activeCategory, setActiveCategory] = useState<FurniturePanelCategory>('desks');
@@ -443,9 +461,39 @@ export function EditorToolbar({
       {isAreasActive && (
         <div className="fade-stagger flex flex-col-reverse gap-4 pb-2">
           <AreaAddRow areas={areas} onAddArea={onAddArea} />
+          <div className="flex items-center gap-8 px-4 text-xs text-text-muted">
+            <label className="flex items-center gap-4">
+              Sleep in rest room after
+              <select
+                className={SELECT_CLASS}
+                value={roomPolicy.sleepAfterMin}
+                onChange={(e) => onRoomPolicyChange({ sleepAfterMin: Number(e.target.value) })}
+              >
+                {ROOM_SLEEP_AFTER_MIN_OPTIONS.map((m) => (
+                  <option key={m} value={m}>
+                    {m === 0 ? 'never' : `${m} min idle`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-4">
+              Permission waits
+              <select
+                className={SELECT_CLASS}
+                value={roomPolicy.waitingMode}
+                onChange={(e) =>
+                  onRoomPolicyChange({ waitingMode: e.target.value as 'badge' | 'area' })
+                }
+              >
+                <option value="badge">badge at desk</option>
+                <option value="area">walk to waiting room</option>
+              </select>
+            </label>
+          </div>
           <div className="text-xs text-text-muted px-4 leading-none">
             Paint areas on the map, then assign workspace folders. Agents will sit in their folder's
-            area.
+            area. A room's purpose decides who goes there: idle agents to Rest, confirmed permission
+            waits to Waiting.
           </div>
           {/* Fixed 4-per-row grid; no overflow clip, or the upward Add-folder dropdown is cut off. */}
           <div className="grid grid-cols-[repeat(4,130px)] gap-4">
@@ -461,6 +509,7 @@ export function EditorToolbar({
                   onRename={(newLabel) => onRenameArea(area.label, newLabel)}
                   onRemove={() => onRemoveArea(area.label)}
                   onColorChange={(c) => onAreaColorChange(area.label, c)}
+                  onPurposeChange={(p) => onAreaPurposeChange(area.label, p)}
                   directories={directories}
                   areaMappings={areaMappings}
                   onAreaMappingChange={onAreaMappingChange}
@@ -758,6 +807,7 @@ function AreaCard({
   onRename,
   onRemove,
   onColorChange,
+  onPurposeChange,
   directories,
   areaMappings,
   onAreaMappingChange,
@@ -768,6 +818,7 @@ function AreaCard({
   onRename: (newLabel: string) => void;
   onRemove: () => void;
   onColorChange: (color: string) => void;
+  onPurposeChange: (purpose: AreaPurpose) => void;
   directories: { name: string; path: string }[];
   areaMappings: Record<string, string[]>;
   onAreaMappingChange: (directoryName: string, areaLabel: string, action: 'add' | 'remove') => void;
@@ -856,6 +907,21 @@ function AreaCard({
           x
         </Button>
       </div>
+
+      <select
+        className={SELECT_CLASS}
+        value={areaPurpose(area)}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => onPurposeChange(e.target.value as AreaPurpose)}
+        title="What this room is for"
+      >
+        {AREA_PURPOSES.map((p) => (
+          <option key={p} value={p}>
+            {AREA_PURPOSE_LABELS[p]}
+            {p === 'planning' ? ' (no provider reports it yet)' : ''}
+          </option>
+        ))}
+      </select>
 
       <div className="flex flex-col gap-2 max-h-80 overflow-y-auto pixel-scrollbar">
         {mappedFolders.length === 0 ? (
