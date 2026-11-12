@@ -9,6 +9,7 @@ import * as path from 'node:path';
 
 import type { AgentStateStore } from './agentStateStore.js';
 import { projectDisplayNames, resolveProject } from './projectIdentity.js';
+import { readProjectLabels } from './projectLabels.js';
 import type { AgentState } from './types.js';
 
 const CODEX_LABEL_PREFIX = 'Codex · ';
@@ -69,6 +70,8 @@ export function latestClaudeCwd(file: string, sessionId?: string): string | unde
 export function startClaudeDirectoryLabels(store: AgentStateStore): { dispose(): void } {
   // Per Claude agent: the transcript state last read, and the cwd it gave.
   const checked = new Map<number, { key: string; cwd?: string }>();
+  // The worktree each agent's last label broadcast carried.
+  const sentWorktree = new Map<number, string | undefined>();
   const cwdFor = (id: number, agent: AgentState): string | undefined => {
     if (agent.providerId === 'codex') return agent.projectCwd;
     if (!agent.jsonlFile) return undefined;
@@ -98,16 +101,21 @@ export function startClaudeDirectoryLabels(store: AgentStateStore): { dispose():
       if (agent.projectRoot) labelled.push([id, agent]);
     }
     const names = projectDisplayNames(labelled.map(([, agent]) => agent.projectRoot!));
+    const pinned = readProjectLabels();
     let changed = false;
     for (const [id, agent] of labelled) {
-      const name = labelFor(agent, names.get(agent.projectRoot!)!);
-      if (name === agent.directoryName) continue;
+      const root = agent.projectRoot!;
+      const name = labelFor(agent, pinned[root] ?? names.get(root)!);
+      const worktree = agent.projectWorktree;
+      if (name === agent.directoryName && worktree === sentWorktree.get(id)) continue;
       agent.directoryName = name;
-      store.broadcast({ type: 'agentDirectoryChanged', id, directoryName: name });
+      sentWorktree.set(id, worktree);
+      store.broadcast({ type: 'agentDirectoryChanged', id, directoryName: name, worktree });
       changed = true;
     }
     if (changed) store.persist();
     for (const id of checked.keys()) if (!store.has(id)) checked.delete(id);
+    for (const id of sentWorktree.keys()) if (!store.has(id)) sentWorktree.delete(id);
   };
   const timer = setInterval(refresh, 2000);
   timer.unref();

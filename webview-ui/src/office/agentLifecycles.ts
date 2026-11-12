@@ -28,6 +28,7 @@ export function getAgentLifecycle(id: number): AgentLifecycleInfo | undefined {
 
 const LIFECYCLE_TEXT: Record<AgentLifecycleState, string> = {
   thinking: 'Thinking',
+  planning: 'Planning',
   reading: 'Reading',
   editing: 'Editing',
   running: 'Running',

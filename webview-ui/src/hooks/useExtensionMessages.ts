@@ -14,6 +14,7 @@ import {
   getAgentLifecycle,
   setAgentLifecycle,
 } from '../office/agentLifecycles.js';
+import { moveAgentRoleKey } from '../office/agentRoles.js';
 import { clearCheckResult, showCheckResult } from '../office/checkResults.js';
 import { clearAgentContextUsed, setAgentContextUsed } from '../office/contextGauge.js';
 import type { ExistingAgentMeta, PendingAgent } from '../office/engine/existingAgents.js';
@@ -25,7 +26,7 @@ import {
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setGhostHeadlessAgents as setRendererGhostHeadlessAgents } from '../office/engine/renderer.js';
 import { setFloorSprites } from '../office/floorTiles.js';
-import { clearAgentKey, isReusedId, setAgentKey } from '../office/hiddenAgents.js';
+import { clearAgentKey, isReusedId, moveAgentKey, setAgentKey } from '../office/hiddenAgents.js';
 import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js';
 import { migrateLayoutColors } from '../office/layout/layoutSerializer.js';
 import {
@@ -491,9 +492,18 @@ export function useExtensionMessages(
         const id = msg.id as number;
         const name = msg.directoryName as string;
         const ch = os.characters.get(id);
-        if (ch) ch.directoryName = name;
+        if (ch) {
+          ch.directoryName = name;
+          ch.projectWorktree = msg.worktree as string | undefined;
+        }
         for (const pending of pendingAgents) if (pending.id === id) pending.directoryName = name;
         noteDirectoryName(name);
+      } else if (msg.type === 'agentKeyChanged') {
+        // Same character, new session (/clear, resume): its hide and role stay.
+        const previousKey = msg.previousKey as string;
+        const key = msg.agentKey as string;
+        moveAgentRoleKey(previousKey, key);
+        moveAgentKey(msg.id as number, previousKey, key);
       } else if (msg.type === 'agentClosed') {
         closeAgent(os, msg.id as number);
       } else if (msg.type === 'existingAgents') {
@@ -506,6 +516,7 @@ export function useExtensionMessages(
         const directoryNames = (msg.directoryNames || {}) as Record<number, string>;
         const externalAgents = (msg.externalAgents || {}) as Record<number, boolean>;
         const agentKeys = (msg.agentKeys || {}) as Record<number, string>;
+        const worktrees = (msg.worktrees || {}) as Record<number, string>;
         const headlessAgents: Record<number, boolean> = {};
         for (const id of incoming) {
           // A restarted server can reuse a numeric id for another session:
@@ -531,6 +542,10 @@ export function useExtensionMessages(
           )
         ) {
           saveAgentSeats(os);
+        }
+        for (const id of incoming) {
+          const ch = os.characters.get(id);
+          if (ch) ch.projectWorktree = worktrees[id];
         }
         setAgents((prev) => {
           const ids = new Set(prev);
@@ -681,11 +696,15 @@ export function useExtensionMessages(
             project,
           });
           const kind = lifecycleNotice(prev, next);
-          if (kind && !os.isHidden(id)) {
+          // A request for approval needs action, so it is announced even for
+          // an agent this viewer hid or filtered out; the rest stay quiet.
+          const hiddenHere = os.isHidden(id);
+          if (kind && (!hiddenHere || kind === 'approval')) {
+            const name = project ?? `Agent ${id}`;
             pushToast({
               agentId: id,
               kind,
-              text: `${project ?? `Agent ${id}`} ${NOTICE_TEXT[kind]}`,
+              text: `${name}${hiddenHere ? ' (hidden)' : ''} ${NOTICE_TEXT[kind]}`,
             });
           }
         }

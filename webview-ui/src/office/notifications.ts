@@ -110,7 +110,7 @@ export function useNotificationsVersion(): number {
   return useSyncExternalStore(subscribe, () => version);
 }
 
-const ACTIVE_STATES = new Set(['thinking', 'reading', 'editing', 'running', 'working']);
+const ACTIVE_STATES = new Set(['thinking', 'planning', 'reading', 'editing', 'running', 'working']);
 
 /**
  * What a live lifecycle change is worth telling the viewer, if anything. Only

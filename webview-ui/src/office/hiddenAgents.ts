@@ -72,6 +72,23 @@ export function setAgentHidden(id: number, hidden: boolean): void {
   changed();
 }
 
+/** The same agent continues under a new session key (/clear, resume):
+ *  keep it hidden if it was, and record the new key for the id. */
+export function moveAgentKey(id: number, previousKey: string, key: string): void {
+  if (hiddenKeys.has(previousKey)) {
+    hiddenKeys = new Set(hiddenKeys);
+    hiddenKeys.delete(previousKey);
+    hiddenKeys.add(key);
+    try {
+      localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([...hiddenKeys]));
+    } catch {
+      // Storage unavailable: the move lasts for this page only.
+    }
+  }
+  keyById.set(id, key);
+  changed();
+}
+
 /** Ids of the agents currently hidden. */
 export function hiddenAgentIds(): number[] {
   return [...keyById].filter(([, key]) => hiddenKeys.has(key)).map(([id]) => id);

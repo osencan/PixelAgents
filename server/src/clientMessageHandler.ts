@@ -40,6 +40,7 @@ import { collectDirectorySuggestions } from './directorySuggestions.js';
 import { hostDirectory } from './hostDirectory.js';
 import { readLayoutFromFile, writeLayoutToFile } from './layoutPersistence.js';
 import { getPaletteCount } from './paletteAssigner.js';
+import { setProjectLabel } from './projectLabels.js';
 import type { ConsentEffects } from './providers/hook/consentExecutor.js';
 import { applyConsentChoice } from './providers/hook/consentExecutor.js';
 import { hooksConsentRequest } from './providers/hook/consentGate.js';
@@ -268,6 +269,16 @@ export function handleClientMessage(
         // never exits) are still removed promptly.
         ctx.ptyManager?.dispose(id);
         runtime.closeAgent(id);
+      }
+      break;
+    }
+
+    case 'setProjectLabel': {
+      // Tokened only (the gate above): pin a project's display name for
+      // every viewer; the label refresher applies it within a poll.
+      const agent = store.get(msg.id as number);
+      if (agent?.projectRoot && typeof msg.label === 'string') {
+        setProjectLabel(agent.projectRoot, msg.label);
       }
       break;
     }
@@ -727,11 +738,13 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   const directoryNames: Record<number, string> = {};
   const externalAgents: Record<number, boolean> = {};
   const agentKeys: Record<number, string> = {};
+  const worktrees: Record<number, string> = {};
   const persistedSeats = adapter?.loadSeats() ?? {};
   const agentMeta: Record<number, { palette?: number; repeat?: number; seatId?: string }> = {};
   for (const [id, agent] of store) {
     agentIds.push(id);
     agentKeys[id] = agentKey(agent);
+    if (agent.projectWorktree) worktrees[id] = agent.projectWorktree;
     if (agent.directoryName) {
       directoryNames[id] = agent.directoryName;
     }
@@ -754,6 +767,7 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
     directoryNames,
     externalAgents,
     agentKeys,
+    worktrees,
   });
 
   // 7. Layout last (see step 3): flushes the webview's buffered existingAgents

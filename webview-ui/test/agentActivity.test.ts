@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   getActivityText,
+  lifecycleAwareText,
   NEEDS_APPROVAL_TEXT,
   pendingApprovalTool,
   providerName,
@@ -35,5 +36,14 @@ describe('agent activity', () => {
     expect(providerName('Codex · Website')).toBe('Codex');
     expect(providerName('ApiServer')).toBe('Claude');
     expect(providerName(undefined)).toBe('Claude');
+  });
+
+  it('says Thinking mid-turn when no tool runs, instead of the stale last tool', () => {
+    const done = [tool('a', 'Running: npm test', true)];
+    expect(lifecycleAwareText('Running: npm test', done, 'thinking')).toBe('Thinking');
+    expect(lifecycleAwareText('Running: npm test', [tool('b', 'Running: x')], 'thinking')).toBe(
+      'Running: npm test',
+    );
+    expect(lifecycleAwareText('Idle', done, 'idle')).toBe('Idle');
   });
 });

@@ -34,6 +34,8 @@ export interface AgentState {
   permissionSuspected?: boolean;
   /** The running Bash command is a test or build (category only, from PreToolUse). */
   pendingCheck?: 'test' | 'build';
+  /** Claude reported permission_mode 'plan' on its latest hook event. */
+  planMode?: boolean;
   hadToolsInTurn: boolean;
   /** Directory name — the agent's origin label (only set for multi-root workspaces) */
   directoryName?: string;

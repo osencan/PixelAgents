@@ -957,3 +957,5 @@ export const AMBIENT_TWILIGHT_TINT = 'rgba(255, 140, 60, 0.08)';
 export const AMBIENT_REFRESH_MS = 60_000;
 /** localStorage key: whether this viewer shows the day/night tint. */
 export const AMBIENT_STORAGE_KEY = 'pixel-agents.ambientTint';
+/** Longest pinned project display name (the server enforces the same). */
+export const PROJECT_LABEL_MAX_LENGTH = 40;

@@ -522,6 +522,28 @@ describe('HookEventHandler', () => {
     ).not.toContain('secret');
   });
 
+  it('tracks Claude plan mode from permission_mode on hook events', () => {
+    const agent = createTestAgent({ id: 1, sessionId: 'sess-1' });
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+    handler.handleEvent('claude', {
+      hook_event_name: 'PreToolUse',
+      session_id: 'sess-1',
+      permission_mode: 'plan',
+      tool_name: 'Glob',
+      tool_input: {},
+    });
+    expect(agent.planMode).toBe(true);
+    handler.handleEvent('claude', {
+      hook_event_name: 'PreToolUse',
+      session_id: 'sess-1',
+      permission_mode: 'default',
+      tool_name: 'Edit',
+      tool_input: {},
+    });
+    expect(agent.planMode).toBe(false);
+  });
+
   it('an ended session is not resurrected by late events, but a resume lifts the tombstone', () => {
     const agent = createTestAgent({ id: 1, sessionId: 'sess-1' });
     agents.set(1, agent);

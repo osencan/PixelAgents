@@ -6,9 +6,16 @@ import {
   AGENT_DETAIL_RECENT_TOOLS,
   AGENT_ROLE_MAX_LENGTH,
   AGENT_ROLE_OPTIONS,
+  PROJECT_LABEL_MAX_LENGTH,
 } from '../constants.js';
 import type { SubagentCharacter } from '../hooks/useExtensionMessages.js';
-import { getActivityText, pendingApprovalTool, providerName } from '../office/agentActivity.js';
+import {
+  getActivityText,
+  lifecycleAwareText,
+  pendingApprovalTool,
+  providerName,
+} from '../office/agentActivity.js';
+import { projectOfLabel } from '../office/agentFilter.js';
 import type { AgentHistoryEntry } from '../office/agentHistory.js';
 import { getAgentHistory } from '../office/agentHistory.js';
 import { getAgentLifecycle, lifecycleText } from '../office/agentLifecycles.js';
@@ -31,6 +38,8 @@ interface AgentDetailPanelProps {
   mobile: boolean;
   /** Close the panel only (deselects the character). */
   onClose: () => void;
+  /** Pin a project display name for every viewer; absent for read-only viewers. */
+  onSetProjectLabel?: (agentId: number, label: string) => void;
 }
 
 function formatDuration(ms: number): string {
@@ -82,6 +91,7 @@ export function AgentDetailPanel({
   subagentCharacters,
   mobile,
   onClose,
+  onSetProjectLabel,
 }: AgentDetailPanelProps) {
   // Character state is imperative (the game loop mutates it): poll it.
   const [now, setNow] = useState(() => Date.now());
@@ -98,8 +108,12 @@ export function AgentDetailPanel({
   useAgentRolesVersion();
   const role = getAgentRole(agentId);
   const [editingRole, setEditingRole] = useState(false);
+  const [renamingProject, setRenamingProject] = useState(false);
   const [customRole, setCustomRole] = useState('');
-  useEffect(() => setEditingRole(false), [agentId]);
+  useEffect(() => {
+    setEditingRole(false);
+    setRenamingProject(false);
+  }, [agentId]);
   const roleChoice =
     editingRole || (role && !AGENT_ROLE_OPTIONS.includes(role)) ? CUSTOM_ROLE : (role ?? '');
 
@@ -136,6 +150,7 @@ export function AgentDetailPanel({
     since.current = { id: agentId, text: activity, at: now };
   }
   const life = getAgentLifecycle(agentId);
+  const doing = lifecycleAwareText(activity, tools, life?.lifecycle);
   const approvalTool = pendingApprovalTool(tools, ch.bubbleType === 'permission');
   const needsApproval =
     ch.bubbleType === 'permission' || (tools?.some((t) => t.permissionWait && !t.done) ?? false);
@@ -238,7 +253,7 @@ export function AgentDetailPanel({
 
       <div className="flex flex-col gap-4">
         <Row label="Doing">
-          {officeState.isAsleep(agentId, now) ? 'Sleeping in the rest room' : activity}
+          {officeState.isAsleep(agentId, now) ? 'Sleeping in the rest room' : doing}
         </Row>
         {life && (
           <Row label="State">
@@ -247,7 +262,47 @@ export function AgentDetailPanel({
           </Row>
         )}
         <Row label="For">{formatDuration(now - (life?.since ?? since.current.at))}</Row>
-        {ch.directoryName && <Row label="Project">{ch.directoryName}</Row>}
+        {ch.directoryName && (
+          <Row label="Project">
+            {renamingProject && onSetProjectLabel ? (
+              <input
+                type="text"
+                defaultValue={projectOfLabel(ch.directoryName)}
+                maxLength={PROJECT_LABEL_MAX_LENGTH}
+                autoFocus
+                onBlur={(e) => {
+                  setRenamingProject(false);
+                  const value = e.currentTarget.value.trim();
+                  if (value !== projectOfLabel(ch.directoryName)) onSetProjectLabel(agentId, value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur();
+                  if (e.key === 'Escape') {
+                    e.stopPropagation();
+                    setRenamingProject(false);
+                  }
+                }}
+                className="text-xs py-1 px-2 bg-bg border-2 border-border rounded-none text-text w-160"
+                aria-label="Project display name (all viewers; empty restores the folder name)"
+              />
+            ) : (
+              <span className="flex flex-wrap items-center gap-4">
+                {ch.directoryName}
+                {onSetProjectLabel && !ch.isSubagent && (
+                  <button
+                    type="button"
+                    className="underline cursor-pointer text-text-muted"
+                    onClick={() => setRenamingProject(true)}
+                    title="Pin a display name for this project (all viewers)"
+                  >
+                    rename
+                  </button>
+                )}
+              </span>
+            )}
+          </Row>
+        )}
+        {ch.projectWorktree && <Row label="Worktree">{ch.projectWorktree}</Row>}
         {!ch.isSubagent && (
           <Row label="Role">
             <span className="flex flex-wrap items-center gap-4">

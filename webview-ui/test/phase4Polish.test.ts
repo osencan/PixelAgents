@@ -1,4 +1,3 @@
- 
 import { describe, expect, it } from 'vitest';
 
 import { CHECK_RESULT_SHOW_MS, PROJECT_ACCENT_COLORS } from '../src/constants.js';

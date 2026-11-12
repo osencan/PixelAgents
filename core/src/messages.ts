@@ -19,6 +19,7 @@ export type ServerMessage =
   | AgentCheckResult
   | AgentHistory
   | AgentDirectoryChanged
+  | AgentKeyChanged
   | AgentToolStart
   | AgentToolDone
   | AgentToolsClear
@@ -67,6 +68,7 @@ export type ClientMessage =
   | CloseAgent
   | SaveAgentSeats
   | SaveLayout
+  | SetProjectLabel
   | SaveCharacterProfiles
   | SetSoundEnabled
   | SetLastSeenVersion
@@ -130,6 +132,7 @@ export interface ExistingAgents {
   directoryNames: Record<string, string>;
   externalAgents: Record<string, boolean>;
   agentKeys?: Record<string, string>;
+  worktrees?: Record<string, string>;
 }
 
 export interface AgentSeatMeta {
@@ -159,6 +162,7 @@ export interface AgentLifecycle {
 
 export type AgentLifecycleState =
   | 'thinking'
+  | 'planning'
   | 'reading'
   | 'editing'
   | 'running'
@@ -177,12 +181,12 @@ export interface AgentToolFailed {
 export interface AgentCheckResult {
   type: 'agentCheckResult';
   id: number;
-  check: AnonymousSchema_45;
+  check: AnonymousSchema_47;
   ok: boolean;
   at: number;
 }
 
-export type AnonymousSchema_45 = 'test' | 'build';
+export type AnonymousSchema_47 = 'test' | 'build';
 
 export interface AgentHistory {
   type: 'agentHistory';
@@ -191,8 +195,8 @@ export interface AgentHistory {
 }
 
 export interface AgentHistoryEntry {
-  kind: AnonymousSchema_51;
-  check?: AnonymousSchema_52;
+  kind: AnonymousSchema_53;
+  check?: AnonymousSchema_54;
   ok?: boolean;
   lifecycle?: AgentLifecycleState;
   observed?: boolean;
@@ -200,14 +204,22 @@ export interface AgentHistoryEntry {
   project?: string;
 }
 
-export type AnonymousSchema_51 = 'state' | 'tool_failed' | 'check';
+export type AnonymousSchema_53 = 'state' | 'tool_failed' | 'check';
 
-export type AnonymousSchema_52 = 'test' | 'build';
+export type AnonymousSchema_54 = 'test' | 'build';
 
 export interface AgentDirectoryChanged {
   type: 'agentDirectoryChanged';
   id: number;
   directoryName: string;
+  worktree?: string;
+}
+
+export interface AgentKeyChanged {
+  type: 'agentKeyChanged';
+  id: number;
+  agentKey: string;
+  previousKey: string;
 }
 
 export interface AgentToolStart {
@@ -629,6 +641,12 @@ export interface SeatAssignment {
 export interface SaveLayout {
   type: 'saveLayout';
   layout: Record<string, any>;
+}
+
+export interface SetProjectLabel {
+  type: 'setProjectLabel';
+  id: number;
+  label: string;
 }
 
 export interface SaveCharacterProfiles {

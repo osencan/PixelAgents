@@ -98,6 +98,8 @@ export function deriveLifecycle(
       permissionSuspected: false,
     };
   }
+  // Claude in plan mode: reading/searching is part of planning.
+  if (agent.planMode) return { lifecycle: 'planning', observed, permissionSuspected: suspected };
   const tool = toolCategory(agent);
   if (tool) return { lifecycle: tool, observed, permissionSuspected: suspected };
   if (now - Math.max(agent.lastDataAt, lastEventAt) > LIFECYCLE_STALE_AFTER_MS) {

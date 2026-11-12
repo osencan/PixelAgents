@@ -196,3 +196,13 @@ describe('lifecycle review fixes', () => {
     service.dispose();
   });
 });
+
+describe('planning', () => {
+  it('a turn in Claude plan mode is planning; a permission request still wins', () => {
+    const planning = withTool(agent({ planMode: true }), 'Read');
+    expect(deriveLifecycle(planning)).toMatchObject({ lifecycle: 'planning', observed: true });
+    planning.permissionSent = true;
+    expect(deriveLifecycle(planning).lifecycle).toBe('waiting_permission');
+    expect(deriveLifecycle(agent({ planMode: true })).lifecycle).toBe('idle');
+  });
+});

@@ -7,7 +7,6 @@ import type { TestHooksWindow } from '../../helpers/editor';
 import { sendHookEvent, sessionStartStartup } from '../../helpers/hooks';
 import { buildSeedLayout } from '../../helpers/layout-seed';
 import {
-  closeAgentFromOverlay,
   expectOverlayCount,
   expectOverlayVisible,
 } from '../../helpers/office';
@@ -24,7 +23,10 @@ const ASSET_RELOAD_TIMEOUT_MS = 15_000;
 const CONNECTION_STATE_TIMEOUT_MS = 15_000;
 
 test.describe('Standalone / UI', () => {
-  test('closeAgent despawns the character @area:standalone', async ({ page, standalone }) => {
+  test('the card × hides an observed agent without closing it; Unhide brings it back @area:standalone', async ({
+    page,
+    standalone,
+  }) => {
     await setSettings(page, {
       alwaysShowLabels: true,
       hooksEnabled: true,
@@ -49,13 +51,27 @@ test.describe('Standalone / UI', () => {
 
     await expectOverlayCount(page, 1);
     await expectOverlayVisible(page, 'Reading close-agent.ts');
+    const agentId = Number(
+      await page.locator('[data-testid="agent-overlay"]').first().getAttribute('data-agent-id'),
+    );
     await standalone.drainMessages();
 
-    await closeAgentFromOverlay(page, { text: 'Reading close-agent.ts' });
-
+    // An observed session is only hidden (this browser): it leaves the office,
+    // keeps a faded card, and the server keeps tracking it.
+    const card = page.locator(`[title^="Agent ${agentId}"]`);
+    await card.locator('button[title="Close agent"]').click();
     await expectOverlayCount(page, 0);
+    await expect(card).toHaveAttribute('data-hidden', 'true');
     const messages = await standalone.drainMessages();
-    expect(messages.some((message) => message.type === 'agentClosed')).toBe(true);
+    expect(messages.some((message) => message.type === 'agentClosed')).toBe(false);
+
+    // The faded card opens the panel, whose Unhide brings the character back.
+    await card.click();
+    await page
+      .locator('[data-testid="agent-detail-panel"]')
+      .getByRole('button', { name: 'Unhide' })
+      .click();
+    await expectOverlayCount(page, 1);
   });
 
   test('Debug View renders JSONL diagnostics in standalone @area:standalone', async ({

@@ -25,6 +25,7 @@ const APPROVAL_BEACON_SIZE_PX = 18;
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
 import {
   getActivityText,
+  lifecycleAwareText,
   NEEDS_APPROVAL_TEXT,
   WAITING_INPUT_ACTIVITY_TEXT,
 } from '../agentActivity.js';
@@ -344,6 +345,7 @@ export function ToolOverlay({
           // The server's explicit lifecycle refines the tool text: silence is
           // "no recent activity", and a guessed permission wait is a hint only.
           const life = getAgentLifecycle(id);
+          activityText = lifecycleAwareText(activityText, agentTools[id], life?.lifecycle);
           if (officeState.isAsleep(id)) activityText = 'Sleeping';
           else if (life?.lifecycle === 'unknown') activityText = lifecycleText('unknown');
           else if (life?.permissionSuspected) activityText += ' · approval?';

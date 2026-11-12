@@ -46,6 +46,22 @@ export function setAgentRole(id: number, role: string): void {
   for (const l of listeners) l();
 }
 
+/** Carry a role over when the agent continues under a new session key. */
+export function moveAgentRoleKey(previousKey: string, key: string): void {
+  const role = roles[previousKey];
+  if (role === undefined) return;
+  const next = { ...roles, [key]: role };
+  delete next[previousKey];
+  roles = next;
+  try {
+    localStorage.setItem(AGENT_ROLES_STORAGE_KEY, JSON.stringify(roles));
+  } catch {
+    // Storage unavailable: the move lasts for this page only.
+  }
+  version += 1;
+  for (const l of listeners) l();
+}
+
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);

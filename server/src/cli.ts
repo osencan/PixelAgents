@@ -10,6 +10,7 @@
 
 import * as path from 'path';
 
+import { startAgentKeyTracker } from './agentKeyTracker.js';
 import { startAgentLifecycle } from './agentLifecycle.js';
 import { AgentRuntime } from './agentRuntime.js';
 import { AgentStateStore } from './agentStateStore.js';
@@ -514,6 +515,7 @@ async function main(): Promise<void> {
     const codexSessions = startCodexSessions(store);
     const claudeDirectoryLabels = startClaudeDirectoryLabels(store);
     const agentLifecycle = startAgentLifecycle(store);
+    const agentKeyTracker = startAgentKeyTracker(store);
 
     // ── Graceful shutdown ──
     let shuttingDown = false;
@@ -524,6 +526,7 @@ async function main(): Promise<void> {
       codexSessions.dispose();
       claudeDirectoryLabels.dispose();
       agentLifecycle.dispose();
+      agentKeyTracker.dispose();
       // In process: kill child terminals and wait for them (each exit closes
       // its agent): exiting now would cancel the SIGKILL escalation and leave
       // a child that ignores SIGHUP orphaned on a dead server. With the PTY

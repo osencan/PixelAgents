@@ -91,6 +91,7 @@ components:
         - $ref: '#/components/schemas/AgentCheckResult'
         - $ref: '#/components/schemas/AgentHistory'
         - $ref: '#/components/schemas/AgentDirectoryChanged'
+        - $ref: '#/components/schemas/AgentKeyChanged'
         - $ref: '#/components/schemas/AgentToolStart'
         - $ref: '#/components/schemas/AgentToolDone'
         - $ref: '#/components/schemas/AgentToolsClear'
@@ -150,6 +151,7 @@ components:
         - $ref: '#/components/schemas/CloseAgent'
         - $ref: '#/components/schemas/SaveAgentSeats'
         - $ref: '#/components/schemas/SaveLayout'
+        - $ref: '#/components/schemas/SetProjectLabel'
         - $ref: '#/components/schemas/SaveCharacterProfiles'
         - $ref: '#/components/schemas/SetSoundEnabled'
         - $ref: '#/components/schemas/SetLastSeenVersion'
@@ -293,6 +295,28 @@ components:
           description: Map of agent ID (string) to its stable agentKey.
           additionalProperties:
             type: string
+        worktrees:
+          type: object
+          description: Map of agent ID (string) to its linked worktree name, when in one.
+          additionalProperties:
+            type: string
+
+    AgentKeyChanged:
+      description: >-
+        The same character continues under a new session (/clear, resume):
+        clients move per-browser preferences from previousKey to agentKey.
+      type: object
+      additionalProperties: false
+      required: [type, id, agentKey, previousKey]
+      properties:
+        type:
+          const: agentKeyChanged
+        id:
+          type: integer
+        agentKey:
+          type: string
+        previousKey:
+          type: string
 
     AgentDirectoryChanged:
       description: An agent's project label changed (metadata only; identity is unchanged).
@@ -306,6 +330,9 @@ components:
           type: integer
         directoryName:
           type: string
+        worktree:
+          type: string
+          description: Linked git worktree the agent works in (grouped under its main repo).
 
     AgentLifecycle:
       description: >-
@@ -414,6 +441,7 @@ components:
       type: string
       enum:
         - thinking
+        - planning
         - reading
         - editing
         - running
@@ -1443,6 +1471,21 @@ components:
         layout:
           type: object
           description: Opaque layout object; format owned by the rendering layer.
+
+    SetProjectLabel:
+      description: >-
+        Pin (or, with an empty label, unpin) the display name of the project
+        the given agent works in, for every viewer. Tokened clients only.
+      type: object
+      additionalProperties: false
+      required: [type, id, label]
+      properties:
+        type:
+          const: setProjectLabel
+        id:
+          type: integer
+        label:
+          type: string
 
     SaveCharacterProfiles:
       description: |

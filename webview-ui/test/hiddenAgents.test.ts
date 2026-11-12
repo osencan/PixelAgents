@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
+import { getAgentRole, moveAgentRoleKey, setAgentRole } from '../src/office/agentRoles.js';
 import { OfficeState } from '../src/office/engine/officeState.js';
 import {
   clearAgentKey,
   hiddenAgentIds,
   isAgentHidden,
   isReusedId,
+  moveAgentKey,
   setAgentHidden,
   setAgentKey,
 } from '../src/office/hiddenAgents.js';
@@ -47,5 +49,17 @@ describe('hidden agents', () => {
     expect(isReusedId(9, 'codex:dddd')).toBe(true);
     expect(isReusedId(9, undefined)).toBe(false);
     expect(isReusedId(10, 'claude:cccc')).toBe(false);
+  });
+
+  it('keeps a hidden agent hidden, with its role, when /clear gives it a new key (1b.10)', () => {
+    setAgentKey(11, 'claude:old11');
+    setAgentHidden(11, true);
+    setAgentRole(11, 'reviewer');
+    moveAgentRoleKey('claude:old11', 'claude:new11');
+    moveAgentKey(11, 'claude:old11', 'claude:new11');
+    expect(isAgentHidden(11)).toBe(true);
+    expect(getAgentRole(11)).toBe('reviewer');
+    // The reconnect snapshot now matches: not mistaken for another session.
+    expect(isReusedId(11, 'claude:new11')).toBe(false);
   });
 });

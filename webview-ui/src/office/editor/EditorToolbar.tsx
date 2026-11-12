@@ -493,7 +493,7 @@ export function EditorToolbar({
           <div className="text-xs text-text-muted px-4 leading-none">
             Paint areas on the map, then assign workspace folders. Agents will sit in their folder's
             area. A room's purpose decides who goes there: idle agents to Rest, confirmed permission
-            waits to Waiting.
+            waits to Waiting, Claude sessions in plan mode to Planning.
           </div>
           {/* Fixed 4-per-row grid; no overflow clip, or the upward Add-folder dropdown is cut off. */}
           <div className="grid grid-cols-[repeat(4,130px)] gap-4">
@@ -918,7 +918,7 @@ function AreaCard({
         {AREA_PURPOSES.map((p) => (
           <option key={p} value={p}>
             {AREA_PURPOSE_LABELS[p]}
-            {p === 'planning' ? ' (no provider reports it yet)' : ''}
+            {p === 'planning' ? ' (Claude plan mode)' : ''}
           </option>
         ))}
       </select>

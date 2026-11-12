@@ -1250,6 +1250,7 @@ export class OfficeState {
     const policy = resolveRoomPolicy(this.layout);
     const restTiles = this.purposeTiles('rest');
     const waitingTiles = policy.waitingMode === 'area' ? this.purposeTiles('waiting') : [];
+    const planningTiles = this.purposeTiles('planning');
     const toDelete: number[] = [];
     for (const ch of this.characters.values()) {
       tickBlink(ch, dt, ch.state === CharacterState.TYPE);
@@ -1274,7 +1275,7 @@ export class OfficeState {
           this.blockedTiles,
         );
       } else {
-        const room = this.roomDestination(ch, restTiles, waitingTiles);
+        const room = this.roomDestination(ch, restTiles, waitingTiles, planningTiles);
         // Temporarily unblock own seat so character can pathfind to it
         this.withOwnSeatUnblocked(ch, () =>
           updateCharacter(
@@ -1376,24 +1377,28 @@ export class OfficeState {
     ch: Character,
     restTiles: Array<{ col: number; row: number }>,
     waitingTiles: Array<{ col: number; row: number }>,
+    planningTiles: Array<{ col: number; row: number }> = [],
   ): { tiles: Array<{ col: number; row: number }>; whileActive: boolean } {
     const none = { tiles: [], whileActive: false };
-    const waiting =
-      ch.isActive &&
-      !ch.isSubagent &&
-      waitingTiles.length > 0 &&
-      getAgentLifecycle(ch.id)?.lifecycle === 'waiting_permission';
-    const purpose: AreaPurpose | null = waiting
-      ? 'waiting'
-      : !ch.isActive && restTiles.length > 0
-        ? 'rest'
-        : null;
+    const lifecycle =
+      ch.isActive && !ch.isSubagent ? getAgentLifecycle(ch.id)?.lifecycle : undefined;
+    // A reported permission wait wins over planning; planning only when Claude
+    // reports plan mode (lifecycle 'planning').
+    const purpose: AreaPurpose | null =
+      lifecycle === 'waiting_permission' && waitingTiles.length > 0
+        ? 'waiting'
+        : lifecycle === 'planning' && planningTiles.length > 0
+          ? 'planning'
+          : !ch.isActive && restTiles.length > 0
+            ? 'rest'
+            : null;
     if (!purpose) {
       this.roomReservations.delete(ch.id);
       return none;
     }
-    const tiles = purpose === 'rest' ? restTiles : waitingTiles;
-    const whileActive = purpose === 'waiting';
+    const tiles =
+      purpose === 'rest' ? restTiles : purpose === 'waiting' ? waitingTiles : planningTiles;
+    const whileActive = purpose !== 'rest';
     const held = this.roomReservations.get(ch.id);
     if (held?.purpose === purpose && tiles.some((t) => t.col === held.col && t.row === held.row)) {
       return { tiles: [{ col: held.col, row: held.row }], whileActive };

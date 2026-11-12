@@ -72,11 +72,16 @@ describe('room purposes', () => {
     const office = new OfficeState(layout());
     const chars = [addIdle(office, 1), addIdle(office, 2), addIdle(office, 3)];
     run(office, 20);
-    const inRoom = chars.filter((c) => ['6,2', '7,2'].includes(tileOf(c)));
-    expect(inRoom).toHaveLength(2);
-    expect(new Set(inRoom.map(tileOf)).size).toBe(2);
-    const extra = chars.find((c) => !inRoom.includes(c))!;
-    expect(office.roomReservation(extra.id)).toBeUndefined();
+    // Two agents hold the two room tiles and stand on them; the third holds
+    // none (it keeps the normal idle behavior, which may wander, so where it
+    // stands at any instant is not asserted).
+    const holders = chars.filter((c) => office.roomReservation(c.id));
+    expect(holders).toHaveLength(2);
+    expect(new Set(holders.map(tileOf))).toEqual(new Set(['6,2', '7,2']));
+    for (const c of holders) {
+      const r = office.roomReservation(c.id)!;
+      expect(tileOf(c)).toBe(`${r.col},${r.row}`);
+    }
   });
 
   it('sends only a confirmed permission wait to the waiting room, and only in that mode', () => {
@@ -213,5 +218,38 @@ describe('newly created idle agents', () => {
     run(office, 20);
     expect(office.roomReservation(5)?.purpose).toBe('rest');
     expect(['6,2', '7,2']).toContain(`${ch.tileCol},${ch.tileRow}`);
+  });
+});
+
+describe('planning room', () => {
+  it('takes agents Claude reports in plan mode, and releases them when planning ends', () => {
+    const base = layout();
+    const withPlanning = {
+      ...base,
+      areas: [...base.areas!, { label: 'Board', color: '#00ff00', purpose: 'planning' as const }],
+      areaTiles: base.areaTiles!.map((t, i) =>
+        i === 0 * COLS + 7 || i === 0 * COLS + 8 ? 'Board' : t,
+      ),
+    };
+    const office = new OfficeState(withPlanning);
+    const ch = addIdle(office, 1);
+    ch.isActive = true;
+    setAgentLifecycle(1, {
+      lifecycle: 'planning',
+      observed: true,
+      permissionSuspected: false,
+      since: 0,
+    });
+    run(office, 20);
+    expect(office.roomReservation(1)?.purpose).toBe('planning');
+    expect(['7,0', '8,0']).toContain(`${ch.tileCol},${ch.tileRow}`);
+    setAgentLifecycle(1, {
+      lifecycle: 'editing',
+      observed: true,
+      permissionSuspected: false,
+      since: 0,
+    });
+    run(office, 1);
+    expect(office.roomReservation(1)).toBeUndefined();
   });
 });

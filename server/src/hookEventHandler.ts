@@ -342,6 +342,9 @@ export class HookEventHandler {
     if (!agent) return;
 
     agent.hookDelivered = true;
+    // Plan mode is reported on every hook event (permission_mode: 'plan').
+    const permissionMode = (event as Record<string, unknown>).permission_mode;
+    if (typeof permissionMode === 'string') agent.planMode = permissionMode === 'plan';
     if (debug)
       console.log(
         `[Pixel Agents] Hook: Agent ${agentId} - ${eventName} (session=${event.session_id.slice(0, 8)}...)`,

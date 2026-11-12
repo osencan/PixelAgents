@@ -25,10 +25,7 @@ const record = (type: string, payload: object, at = Date.now()) => ({
 });
 function session() {
   const s = emptyCodexSession();
-  reduceCodexRecord(
-    s,
-    record('session_meta', { id: 'test-session', cwd: '/projects/ApiServer' }),
-  );
+  reduceCodexRecord(s, record('session_meta', { id: 'test-session', cwd: '/projects/ApiServer' }));
   reduceCodexRecord(s, record('event_msg', { type: 'task_started' }));
   return s;
 }

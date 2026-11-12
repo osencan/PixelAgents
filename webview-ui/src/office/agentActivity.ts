@@ -54,3 +54,17 @@ export function pendingApprovalTool(
 export function providerName(directoryName: string | undefined): string {
   return directoryName?.startsWith('Codex') ? 'Codex' : 'Claude';
 }
+
+/**
+ * Refine the tool-based activity text with the server's lifecycle: mid-turn
+ * with no tool running, the last tool's line is stale -- say "Thinking".
+ */
+export function lifecycleAwareText(
+  text: string,
+  tools: ToolActivity[] | undefined,
+  lifecycle: string | undefined,
+): string {
+  const toolRunning = (tools ?? []).some((t) => !t.done);
+  if (lifecycle === 'thinking' && !toolRunning) return 'Thinking';
+  return text;
+}

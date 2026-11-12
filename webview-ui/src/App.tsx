@@ -402,6 +402,9 @@ function App() {
     },
     [handleCloseAgent, terminalAgentIds],
   );
+  const setProjectLabel = useCallback((id: number, label: string) => {
+    transport.send({ type: 'setProjectLabel', id, label });
+  }, []);
   const closeDetailPanel = useCallback(() => {
     getOfficeState().selectedAgentId = null;
   }, []);
@@ -591,6 +594,7 @@ function App() {
         subagentCharacters={subagentCharacters}
         mobile={isMobile}
         onClose={closeDetailPanel}
+        onSetProjectLabel={officeReadOnly ? undefined : setProjectLabel}
       />
     ) : null;
 
