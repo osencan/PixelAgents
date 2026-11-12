@@ -464,6 +464,13 @@ export function useExtensionMessages(
           }
         }
         saveAgentSeats(os);
+      } else if (msg.type === 'agentDirectoryChanged') {
+        const id = msg.id as number;
+        const name = msg.directoryName as string;
+        const ch = os.characters.get(id);
+        if (ch) ch.directoryName = name;
+        for (const pending of pendingAgents) if (pending.id === id) pending.directoryName = name;
+        noteDirectoryName(name);
       } else if (msg.type === 'agentClosed') {
         closeAgent(os, msg.id as number);
       } else if (msg.type === 'existingAgents') {

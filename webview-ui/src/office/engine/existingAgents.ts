@@ -43,7 +43,7 @@ export interface ExistingAgentsOffice {
   /** Start an agent at rest: not working, resting in its chair if it has one. */
   restAgent: (id: number) => void;
   /** Give an agent the office already shows the server's look and seat. */
-  syncAgent: (id: number, palette?: number, repeat?: number, seatId?: string) => void;
+  syncAgent: (id: number, palette?: number, repeat?: number, seatId?: string, directoryName?: string) => void;
 }
 
 /**
@@ -93,7 +93,7 @@ export function reconcileExistingAgents(
         // Already shown (a reconnect): the snapshot is the truth. Keeping the
         // office's own look and seat and saving them back reshuffled the
         // office for every other viewer.
-        os.syncAgent(p.id, p.palette, p.repeat, p.seatId);
+        os.syncAgent(p.id, p.palette, p.repeat, p.seatId, p.directoryName);
       }
     } else {
       pending.push(p);

@@ -101,7 +101,37 @@ export function updateCharacter(
   seats: Map<string, Seat>,
   tileMap: TileTypeVal[][],
   blockedTiles: Set<string>,
+  restTiles: Array<{ col: number; row: number }> = [],
 ): void {
+  // Local idle-room policy: preserve the work seat and use normal pathfinding.
+  if (!ch.isActive && restTiles.length > 0) {
+    const inRoom = (tile: { col: number; row: number }) =>
+      restTiles.some((rest) => rest.col === tile.col && rest.row === tile.row);
+    if (inRoom({ col: ch.tileCol, row: ch.tileRow }) && ch.path.length === 0) {
+      ch.path = [];
+      ch.state = CharacterState.IDLE;
+      ch.frame = 0;
+      ch.frameTimer = 0;
+      ch.seatTimer = 0;
+      return;
+    }
+    const destination = ch.path[ch.path.length - 1];
+    if (ch.state !== CharacterState.WALK || !destination || !inRoom(destination)) {
+      // Spread agents across the room and try alternatives when a tile is unreachable.
+      for (let i = 0; i < restTiles.length; i++) {
+        const target = restTiles[(Math.abs(ch.id) + i) % restTiles.length];
+        const route = findPath(ch.tileCol, ch.tileRow, target.col, target.row, tileMap, blockedTiles);
+        if (route.length === 0) continue;
+        ch.path = route;
+        ch.moveProgress = 0;
+        ch.state = CharacterState.WALK;
+        ch.frame = 0;
+        ch.frameTimer = 0;
+        ch.seatTimer = 0;
+        break;
+      }
+    }
+  }
   ch.frameTimer += dt;
 
   switch (ch.state) {

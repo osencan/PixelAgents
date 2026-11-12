@@ -637,9 +637,10 @@ export class OfficeState {
 
   /** Give an agent the server's look and seat (a reconnect's snapshot). The
    *  seat is taken only when it exists and no one else sits there. */
-  syncAgent(agentId: number, palette?: number, repeat?: number, seatId?: string): void {
+  syncAgent(agentId: number, palette?: number, repeat?: number, seatId?: string, directoryName?: string): void {
     const ch = this.characters.get(agentId);
     if (!ch) return;
+    ch.directoryName = directoryName;
     if (palette !== undefined) {
       ch.palette = palette;
       ch.repeat = repeat ?? 0;
@@ -1209,6 +1210,15 @@ export class OfficeState {
       this.greeter = null;
     }
 
+    // Prefer explicitly named rest areas; the existing four-room layout uses Blue Room.
+    const restLabels = new Set(
+      (this.layout.areas ?? []).filter((area) => /^rest(?: room)?$/i.test(area.label.trim()))
+        .map((area) => area.label),
+    );
+    if (restLabels.size === 0) restLabels.add('Blue Room');
+    const restTiles = this.walkableTiles.filter(({ col, row }) =>
+      restLabels.has(this.layout.areaTiles?.[row * this.layout.cols + col] ?? ''),
+    );
     const toDelete: number[] = [];
     for (const ch of this.characters.values()) {
       tickBlink(ch, dt, ch.state === CharacterState.TYPE);
@@ -1218,7 +1228,7 @@ export class OfficeState {
         continue; // skip normal FSM while the effect is (or just was) active
       }
 
-      if (ch.isSubagent) {
+      if (ch.isSubagent && (ch.isActive || restTiles.length === 0)) {
         const lead = ch.parentAgentId !== null ? this.characters.get(ch.parentAgentId) : undefined;
         // Helpers gather around the lead's seat, not the lead: an idle lead
         // wanders, and its helpers should not trail it around the office.
@@ -1235,7 +1245,7 @@ export class OfficeState {
       } else {
         // Temporarily unblock own seat so character can pathfind to it
         this.withOwnSeatUnblocked(ch, () =>
-          updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles),
+          updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles, restTiles),
         );
       }
 

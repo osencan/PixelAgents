@@ -19,7 +19,9 @@ import {
   loadExternalCharacters,
 } from './assetReload.js';
 import { getCharacterProfiles, watchCharacterProfiles } from './characterProfilesPersistence.js';
+import { startClaudeDirectoryLabels } from './claudeDirectoryLabels.js';
 import type { AssetCache, ReloadAssetsSideEffect } from './clientMessageHandler.js';
+import { startCodexSessions } from './codexSessions.js';
 import {
   getHooksConsent,
   getHooksEnabled,
@@ -508,12 +510,17 @@ async function main(): Promise<void> {
       `\n  Pixel Agents server running at http://${displayHost}:${config.port}/?token=${config.token}\n`,
     );
 
+    const codexSessions = startCodexSessions(store);
+    const claudeDirectoryLabels = startClaudeDirectoryLabels(store);
+
     // ── Graceful shutdown ──
     let shuttingDown = false;
     async function shutdown(): Promise<void> {
       if (shuttingDown) return;
       shuttingDown = true;
       console.log('\nShutting down...');
+      codexSessions.dispose();
+      claudeDirectoryLabels.dispose();
       // In process: kill child terminals and wait for them (each exit closes
       // its agent): exiting now would cancel the SIGKILL escalation and leave
       // a child that ignores SIGHUP orphaned on a dead server. With the PTY

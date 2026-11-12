@@ -172,6 +172,8 @@ export const AREA_LABEL_FALLBACK_COLOR = '#ffffff';
 export const AREA_LABEL_SHADOW_COLOR = '#000000';
 /** Drop-shadow alpha behind area labels. */
 export const AREA_LABEL_SHADOW_ALPHA = 0.6;
+/** Rows above a room's bottom floor row: the wall below overdraws that row. */
+export const AREA_LABEL_ROWS_ABOVE_BOTTOM = 1;
 
 // ── VisualColorPicker (HSV wheel + brightness for carpets) ───
 export const VISUAL_COLOR_PICKER_SV_SIZE_PX = 180;
