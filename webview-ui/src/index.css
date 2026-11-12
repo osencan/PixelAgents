@@ -304,6 +304,16 @@
     animation: pixel-pulse 1.5s ease-in-out infinite;
   }
 
+  /* An agent asking for approval: its bubble/beacon and label light up. */
+  .approval-beacon {
+    animation: approval-beacon 1s steps(2, jump-none) infinite;
+  }
+
+  .approval-glow {
+    outline: 2px solid var(--color-status-permission);
+    animation: approval-beacon 1s steps(2, jump-none) infinite;
+  }
+
   /* Top-anchored floating chrome (Settings, view toggle, connection pill):
      in a Home-Screen PWA with viewport-fit=cover the page starts under the
      iOS status bar, so the usual 8px top offset lands beneath the clock.
@@ -398,6 +408,16 @@
     .touch-no-scrollbar::-webkit-scrollbar {
       display: none;
     }
+  }
+}
+
+@keyframes approval-beacon {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 var(--color-status-permission));
+  }
+  50% {
+    filter: drop-shadow(0 0 6px var(--color-status-permission)) brightness(1.3);
   }
 }
 

@@ -93,6 +93,7 @@ test.describe('Standalone / terminal', () => {
     });
 
     // Close from the card: PTY killed, tab removed, character despawns.
+    page.once('dialog', (dialog) => void dialog.accept());
     await page.getByTitle('Agent 1').locator('button[title="Close agent"]').click();
     await expect(page.getByTitle('Agent 1')).toHaveCount(0);
     await expectOverlayCount(page, 0);

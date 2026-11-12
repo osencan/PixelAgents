@@ -100,6 +100,7 @@ test.describe('Standalone / conversation sidebar', () => {
       .filter({ has: page.getByTestId('conversation-status') });
     await expect(running).toHaveCount(1);
     // The card's ×: the agent comes in focused, so its overlay has one too.
+    page.once('dialog', (dialog) => void dialog.accept());
     await page.getByTitle('Agent 1').locator('button[title="Close agent"]').click();
     await expectOverlayCount(page, 0);
 

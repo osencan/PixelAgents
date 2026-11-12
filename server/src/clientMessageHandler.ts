@@ -3,6 +3,7 @@ import { rosterPick } from '../../core/src/paletteUtils.js';
 import type { HookProvider } from '../../core/src/provider.js';
 import { resendAgentActivity } from './agentActivityResend.js';
 import { buildAgentDiagnostics } from './agentDiagnostics.js';
+import { agentKey } from './agentMessages.js';
 import type { AgentRuntime } from './agentRuntime.js';
 import type { AgentStateStore } from './agentStateStore.js';
 import type { LoadedAssets, LoadedCharacterSprites, LoadedPetSprites } from './assetLoader.js';
@@ -724,10 +725,12 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   const agentIds: number[] = [];
   const directoryNames: Record<number, string> = {};
   const externalAgents: Record<number, boolean> = {};
+  const agentKeys: Record<number, string> = {};
   const persistedSeats = adapter?.loadSeats() ?? {};
   const agentMeta: Record<number, { palette?: number; repeat?: number; seatId?: string }> = {};
   for (const [id, agent] of store) {
     agentIds.push(id);
+    agentKeys[id] = agentKey(agent);
     if (agent.directoryName) {
       directoryNames[id] = agent.directoryName;
     }
@@ -749,6 +752,7 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
     agentMeta,
     directoryNames,
     externalAgents,
+    agentKeys,
   });
 
   // 7. Layout last (see step 3): flushes the webview's buffered existingAgents

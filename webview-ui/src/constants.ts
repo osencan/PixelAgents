@@ -879,3 +879,13 @@ export const MUSIC_VERSION_GAP_PX = 6;
 export const VERSION_LABEL_BOTTOM_PX = 10;
 /** The update notice / changelog tooltip, this far above the label's spot. */
 export const VERSION_NOTICE_ABOVE_PX = 34;
+
+// ── Agent detail panel ─────────────────────────────────────
+/** Width of the panel docked beside the office (desktop). */
+export const AGENT_DETAIL_PANEL_WIDTH_PX = 300;
+/** Most recent tool steps listed under "This turn". */
+export const AGENT_DETAIL_RECENT_TOOLS = 8;
+/** localStorage key: agent keys this viewer hid from the office (per browser). */
+export const HIDDEN_AGENTS_STORAGE_KEY = 'pixel-agents.hiddenAgents';
+/** Opacity of a hidden agent's card in the stack. */
+export const HIDDEN_AGENT_CARD_OPACITY = 0.4;

@@ -1,6 +1,11 @@
-import { CARD_CONTEXT_BAR_HEIGHT_PX, CARD_MUGSHOT_CROP_TOP_ROW } from '../constants.js';
+import {
+  CARD_CONTEXT_BAR_HEIGHT_PX,
+  CARD_MUGSHOT_CROP_TOP_ROW,
+  HIDDEN_AGENT_CARD_OPACITY,
+} from '../constants.js';
 import { ContextBar } from '../office/ContextBar.js';
 import { contextLeft, useAgentContextUsed } from '../office/contextGauge.js';
+import { useIsAgentHidden } from '../office/hiddenAgents.js';
 import type { CardVariant, CloseMode } from './cardBar.js';
 import { CharacterMugShot } from './CharacterMugShot.js';
 import { STATUS_DOT } from './statusDot.js';
@@ -61,11 +66,15 @@ export function AgentCard({
   onClose,
 }: AgentCardProps) {
   const contextUsed = useAgentContextUsed(agentId);
+  // A hidden agent keeps its card, faded: clicking it opens the panel to unhide.
+  const hidden = useIsAgentHidden(agentId);
   return (
     <div
       className={`group relative pointer-events-auto flex items-stretch gap-1 p-1 cursor-pointer border-2 shrink-0 ${CARD_VARIANT[variant]}`}
       onClick={() => onSelect(agentId)}
-      title={`Agent ${agentId}`}
+      title={hidden ? `Agent ${agentId} (hidden)` : `Agent ${agentId}`}
+      style={hidden ? { opacity: HIDDEN_AGENT_CARD_OPACITY } : undefined}
+      data-hidden={hidden || undefined}
     >
       <CharacterMugShot
         palette={appearance.palette}

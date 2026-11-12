@@ -1,0 +1,53 @@
+import { describe, expect, it } from 'vitest';
+
+import { redactForViewer, toolStatusCategory } from '../src/viewerRedaction.js';
+
+describe('redactForViewer', () => {
+  it('replaces commands, file names and subtask text with categories', () => {
+    const cases: Array<[string, string | undefined, string]> = [
+      ['Running: rm -rf build && npm test', 'Bash', 'Running a command'],
+      ['Editing secrets.env', 'Edit', 'Editing a file'],
+      ['Writing notes.md', 'Write', 'Editing a file'],
+      ['Reading customer-list.csv', 'Read', 'Reading a file'],
+      ['Subtask: audit the payroll export', 'Task', 'Subtask: details hidden'],
+      ['Using mcp__private__thing', 'mcp__private__thing', 'Working'],
+    ];
+    for (const [status, toolName, expected] of cases) {
+      expect(
+        redactForViewer({ type: 'agentToolStart', id: 1, toolId: 't', status, toolName }),
+      ).toEqual({
+        type: 'agentToolStart',
+        id: 1,
+        toolId: 't',
+        status: expected,
+        toolName,
+      });
+    }
+  });
+
+  it('redacts sub-agent tool lines, which carry no tool name', () => {
+    const out = redactForViewer({ type: 'subagentToolStart', id: 2, status: 'Running: git push' });
+    expect(out.status).toBe('Running a command');
+  });
+
+  it('keeps content-free statuses and leaves other messages untouched', () => {
+    expect(toolStatusCategory('Searching code', 'Grep')).toBe('Searching code');
+    expect(toolStatusCategory('Waiting for your answer', 'AskUserQuestion')).toBe(
+      'Waiting for your answer',
+    );
+    const status = { type: 'agentStatus', id: 1, status: 'active' };
+    expect(redactForViewer(status)).toBe(status);
+  });
+});
+
+describe('agentKey', () => {
+  it('is stable per session, opaque, and namespaced by provider', async () => {
+    const { agentKey } = await import('../src/agentMessages.js');
+    const a = agentKey({ sessionId: 'session-123', providerId: undefined });
+    expect(a).toBe(agentKey({ sessionId: 'session-123', providerId: undefined }));
+    expect(a).toMatch(/^claude:[0-9a-f]{16}$/);
+    expect(a).not.toContain('session-123');
+    expect(agentKey({ sessionId: 'codex:abc', providerId: 'codex' })).toMatch(/^codex:/);
+    expect(agentKey({ sessionId: 'session-124', providerId: undefined })).not.toBe(a);
+  });
+});

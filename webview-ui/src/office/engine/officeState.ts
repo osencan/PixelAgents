@@ -15,6 +15,7 @@ import {
   WAITING_BUBBLE_DURATION_SEC,
 } from '../../constants.js';
 import { contextUsedShare } from '../contextGauge.js';
+import { isAgentHidden } from '../hiddenAgents.js';
 import { getAnimationFrames, getCatalogEntry, getOnStateType } from '../layout/furnitureCatalog.js';
 import {
   createDefaultLayout,
@@ -637,7 +638,13 @@ export class OfficeState {
 
   /** Give an agent the server's look and seat (a reconnect's snapshot). The
    *  seat is taken only when it exists and no one else sits there. */
-  syncAgent(agentId: number, palette?: number, repeat?: number, seatId?: string, directoryName?: string): void {
+  syncAgent(
+    agentId: number,
+    palette?: number,
+    repeat?: number,
+    seatId?: string,
+    directoryName?: string,
+  ): void {
     const ch = this.characters.get(agentId);
     if (!ch) return;
     ch.directoryName = directoryName;
@@ -1212,7 +1219,8 @@ export class OfficeState {
 
     // Prefer explicitly named rest areas; the existing four-room layout uses Blue Room.
     const restLabels = new Set(
-      (this.layout.areas ?? []).filter((area) => /^rest(?: room)?$/i.test(area.label.trim()))
+      (this.layout.areas ?? [])
+        .filter((area) => /^rest(?: room)?$/i.test(area.label.trim()))
         .map((area) => area.label),
     );
     if (restLabels.size === 0) restLabels.add('Blue Room');
@@ -1245,7 +1253,15 @@ export class OfficeState {
       } else {
         // Temporarily unblock own seat so character can pathfind to it
         this.withOwnSeatUnblocked(ch, () =>
-          updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles, restTiles),
+          updateCharacter(
+            ch,
+            dt,
+            this.walkableTiles,
+            this.seats,
+            this.tileMap,
+            this.blockedTiles,
+            restTiles,
+          ),
         );
       }
 
@@ -1307,6 +1323,21 @@ export class OfficeState {
     return chars;
   }
 
+  /** Hidden by this viewer: the agent itself, or (subagents, teammates) its
+   *  parent. Hidden characters keep simulating and keep their seats; they are
+   *  only left out of drawing, labels and hit-testing. */
+  isHidden(id: number): boolean {
+    if (isAgentHidden(id)) return true;
+    const ch = this.characters.get(id);
+    const parentId = ch?.parentAgentId ?? ch?.leadAgentId;
+    return parentId !== null && parentId !== undefined && isAgentHidden(parentId);
+  }
+
+  /** What the office draws: getCharacters() minus the hidden agents. */
+  getVisibleCharacters(): Character[] {
+    return this.getCharacters().filter((ch) => !this.isHidden(ch.id));
+  }
+
   /** Get character at pixel position (for hit testing). Returns id or null.
    *  Agents only: clicks pass straight through the consent greeter, which is
    *  a prop, not something to select or follow. */
@@ -1315,6 +1346,7 @@ export class OfficeState {
     for (const ch of chars) {
       // Skip characters that are despawning
       if (ch.matrixEffect === 'despawn') continue;
+      if (this.isHidden(ch.id)) continue;
       // Character sprite is 16x24, anchored bottom-center
       // Apply sitting offset to match visual position
       const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;

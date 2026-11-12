@@ -30,6 +30,7 @@ import {
   recordUsageReport,
   usageLimitsMessage,
 } from './usageLimits.js';
+import { redactForViewer } from './viewerRedaction.js';
 import {
   bearerTokenValid,
   isAllowedWebSocketOrigin,
@@ -259,20 +260,24 @@ function registerWebSocketRoute(
     }
 
     const { store } = options;
+    // Every message to this socket goes through here: read-only viewers get
+    // tool activity as broad categories, never file names or commands.
+    const send = (message: Record<string, unknown>) =>
+      safeSend(socket, privileged ? message : redactForViewer(message));
 
     // Pipe store events to WebSocket client
     const onAgentAdded = (id: number, agent: AgentState) => {
-      safeSend(socket, agentCreatedMessage(id, agent));
+      send(agentCreatedMessage(id, agent));
     };
 
     const onAgentRemoved = (id: number) => {
-      safeSend(socket, { type: 'agentClosed', id });
+      send({ type: 'agentClosed', id });
     };
 
     const onBroadcast = (message: Record<string, unknown>) => {
       // The operator's account usage is not for read-only viewers.
       if (!privileged && PRIVILEGED_BROADCAST_TYPES.has(String(message.type))) return;
-      safeSend(socket, message);
+      send(message);
     };
 
     store.on('agentAdded', onAgentAdded);
@@ -286,7 +291,7 @@ function registerWebSocketRoute(
         if (!options.embedded && msg.type) {
           console.log('[Pixel Agents] WS client message:', msg.type);
         }
-        handleClientMessage(msg, (m) => safeSend(socket, m), {
+        handleClientMessage(msg, send, {
           store,
           runtime: options.runtime,
           cache: options.assetCache ?? null,

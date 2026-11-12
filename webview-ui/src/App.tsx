@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { toMajorMinor } from './changelogData.js';
 import { CharactersView } from './characters/ui/CharactersView.js';
 import { AgentCardBar } from './components/AgentCardBar.js';
+import { AgentDetailPanel } from './components/AgentDetailPanel.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChangelogModal } from './components/ChangelogModal.js';
 import { ConnectionIndicator } from './components/ConnectionIndicator.js';
@@ -44,6 +45,7 @@ import { ToolOverlay } from './office/components/ToolOverlay.js';
 import { EditorState } from './office/editor/editorState.js';
 import { EditorToolbar } from './office/editor/EditorToolbar.js';
 import { OfficeState } from './office/engine/officeState.js';
+import { isAgentHidden, setAgentHidden } from './office/hiddenAgents.js';
 import { exportLayoutToFile } from './office/layout/exportLayout.js';
 import { isRotatable } from './office/layout/furnitureCatalog.js';
 import { migrateLayoutColors } from './office/layout/layoutSerializer.js';
@@ -373,8 +375,26 @@ function App() {
     editor.handleToggleEditMode,
   );
 
+  // Removes the agent (kills a launched one; hides an observed session).
   const handleCloseAgent = useCallback((id: number) => {
     transport.send({ type: 'closeAgent', id });
+  }, []);
+  // Card ×: an agent with a terminal we launched is closed (its process
+  // killed), after a confirm; an observed session is only hidden/unhidden in
+  // this browser — it keeps its faded card, never leaves the stack.
+  const confirmCloseAgent = useCallback(
+    (id: number) => {
+      if (!terminalAgentIds.includes(id)) {
+        setAgentHidden(id, !isAgentHidden(id));
+        return;
+      }
+      const name = getOfficeState().characters.get(id)?.directoryName ?? `agent ${id}`;
+      if (window.confirm(`Close ${name}? This ends its terminal session.`)) handleCloseAgent(id);
+    },
+    [handleCloseAgent, terminalAgentIds],
+  );
+  const closeDetailPanel = useCallback(() => {
+    getOfficeState().selectedAgentId = null;
   }, []);
 
   const { reveal: revealTerminal } = terminalDrawer;
@@ -532,6 +552,19 @@ function App() {
     return <LoadingScene />;
   }
 
+  const detailPanel =
+    focusedAgentId !== null && !isDebugMode && !editor.isEditMode ? (
+      <AgentDetailPanel
+        agentId={focusedAgentId}
+        officeState={officeState}
+        agentTools={agentTools}
+        subagentTools={subagentTools}
+        subagentCharacters={subagentCharacters}
+        mobile={isMobile}
+        onClose={closeDetailPanel}
+      />
+    ) : null;
+
   // The office region is shared by both shells: desktop mounts it as the
   // flexing left half of the split view (the terminal panel docks beside it);
   // mobile mounts it as the first page of the sliding track. containerRef
@@ -669,10 +702,10 @@ function App() {
               containerRef={containerRef}
               zoom={editor.zoom}
               panRef={editor.panRef}
-              onCloseAgent={handleCloseAgent}
               alwaysShowOverlay={alwaysShowOverlay}
             />
           </div>
+          {isMobile && detailPanel}
         </>
       ) : (
         <DebugView
@@ -812,7 +845,7 @@ function App() {
           directories={directories}
           onAddDirectory={directoryEditor.add}
           onEditDirectory={directoryEditor.edit}
-          onCloseAgent={handleCloseAgent}
+          onCloseAgent={confirmCloseAgent}
           onReorder={officeReadOnly ? undefined : saveCardOrder}
           onOpenCharacters={officeReadOnly ? undefined : openCharacters}
           keyboardOpen={keyboard.keyboardOpen}
@@ -847,7 +880,7 @@ function App() {
               getAppearance={terminalDrawer.getAppearance}
               statusFor={terminalDrawer.statusFor}
               onSelect={handleCardSelect}
-              onClose={handleCloseAgent}
+              onClose={confirmCloseAgent}
               onReorder={officeReadOnly ? undefined : saveCardOrder}
               trailing={
                 terminalAvailable && terminalAgentIds.length > 0 ? (
@@ -856,6 +889,9 @@ function App() {
               }
             />
           )}
+
+          {/* The selected agent's details, docked right of the office. */}
+          {detailPanel}
 
           {/* Standalone with a terminal: terminalAvailable is only ever true when
               the server reports a working PTY to a tokened session, which VS
