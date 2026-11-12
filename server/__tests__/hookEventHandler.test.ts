@@ -476,6 +476,25 @@ describe('HookEventHandler', () => {
     expect(onSessionEnd).toHaveBeenCalledWith(1, 'exit');
   });
 
+  it('PostToolUseFailure reports a failure without tool content; PostToolUse does not', () => {
+    agents.set(1, createTestAgent({ id: 1, sessionId: 'sess-1' }));
+    handler.registerAgent('sess-1', 1);
+    handler.handleEvent('claude', {
+      hook_event_name: 'PostToolUse',
+      session_id: 'sess-1',
+      tool_name: 'Bash',
+    });
+    expect(mockWebview.messages.some((m) => m.type === 'agentToolFailed')).toBe(false);
+    handler.handleEvent('claude', {
+      hook_event_name: 'PostToolUseFailure',
+      session_id: 'sess-1',
+      tool_name: 'Bash',
+      tool_input: { command: 'secret' },
+    });
+    const failed = mockWebview.messages.find((m) => m.type === 'agentToolFailed');
+    expect(failed).toEqual({ type: 'agentToolFailed', id: 1, at: expect.any(Number) });
+  });
+
   it('an ended session is not resurrected by late events, but a resume lifts the tombstone', () => {
     const agent = createTestAgent({ id: 1, sessionId: 'sess-1' });
     agents.set(1, agent);

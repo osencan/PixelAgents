@@ -11,6 +11,11 @@ import {
   toggleProvider,
   useAgentFilterVersion,
 } from '../office/agentFilter.js';
+import {
+  notificationsEnabled,
+  setNotificationsEnabled,
+  useNotificationsVersion,
+} from '../office/notifications.js';
 import { Button } from './ui/Button.js';
 import { Checkbox } from './ui/Checkbox.js';
 
@@ -35,6 +40,7 @@ export function AgentFilter({
   buttonClassName = '',
 }: AgentFilterProps) {
   useAgentFilterVersion();
+  useNotificationsVersion();
   const [open, setOpen] = useState(false);
   const providers = [...new Set(labels.map((l) => providerName(l)))].sort();
   const projects = [...new Set(labels.map((l) => projectOfLabel(l)))].sort((a, b) =>
@@ -92,6 +98,13 @@ export function AgentFilter({
               Show all
             </Button>
           )}
+          <span className="text-text-muted pt-4">This browser</span>
+          <Checkbox
+            label="Notifications"
+            checked={notificationsEnabled()}
+            onChange={() => setNotificationsEnabled(!notificationsEnabled())}
+            title="Approval requests, finished turns and failed tools"
+          />
         </div>
       )}
     </div>

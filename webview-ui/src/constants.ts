@@ -905,3 +905,18 @@ export const REST_AREA_LABEL_PATTERN = /^rest(?: room)?$/i;
 export const LEGACY_REST_AREA_LABEL = 'Blue Room';
 /** Seconds before a character that found no free, reachable room tile tries again. */
 export const ROOM_RESERVATION_RETRY_SEC = 2;
+
+// ── Activity history & notifications ───────────────────────
+/** Most recent history entries kept per agent in the browser (matches the server). */
+export const AGENT_HISTORY_MAX = 30;
+/** History entries listed in the detail panel. */
+export const AGENT_DETAIL_HISTORY_ROWS = 10;
+/** localStorage key: whether this viewer gets activity notifications (per browser). */
+export const NOTIFICATIONS_STORAGE_KEY = 'pixel-agents.notifications';
+/** How long a notification stays up. */
+export const TOAST_DURATION_MS = 6000;
+/** Notifications shown at once (older ones give way). */
+export const TOAST_MAX_VISIBLE = 3;
+/** Preferred distance (tiles, any direction) between agents in a rest/waiting
+ *  room: 2 leaves an empty tile between them. Packed closer only when full. */
+export const ROOM_MIN_SPACING_TILES = 2;

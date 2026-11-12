@@ -1,8 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
-import { AGENT_DETAIL_PANEL_WIDTH_PX, AGENT_DETAIL_RECENT_TOOLS } from '../constants.js';
+import {
+  AGENT_DETAIL_HISTORY_ROWS,
+  AGENT_DETAIL_PANEL_WIDTH_PX,
+  AGENT_DETAIL_RECENT_TOOLS,
+} from '../constants.js';
 import type { SubagentCharacter } from '../hooks/useExtensionMessages.js';
 import { getActivityText, pendingApprovalTool, providerName } from '../office/agentActivity.js';
+import { getAgentHistory } from '../office/agentHistory.js';
 import { getAgentLifecycle, lifecycleText } from '../office/agentLifecycles.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setAgentHidden, useIsAgentHidden } from '../office/hiddenAgents.js';
@@ -28,6 +33,14 @@ function formatDuration(ms: number): string {
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m ${s % 60}s`;
   return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+function clock(at: number): string {
+  return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function nameOf(ch: { id: number; agentName?: string; directoryName?: string }): string {
+  return ch.agentName || ch.directoryName || `Agent ${ch.id}`;
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -69,6 +82,21 @@ export function AgentDetailPanel({
   // When the current activity started (reset whenever its text changes).
   const since = useRef<{ id: number; text: string; at: number } | null>(null);
 
+  // Jumping to a Parent/Linked agent swaps the panel's content; move focus to
+  // the new heading so keyboard users don't fall back to the page start.
+  const headingId = useId();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const focusHeadingNext = useRef(false);
+  useEffect(() => {
+    if (!focusHeadingNext.current) return;
+    focusHeadingNext.current = false;
+    headingRef.current?.focus();
+  }, [agentId]);
+  const jumpTo = (id: number) => {
+    focusHeadingNext.current = true;
+    officeState.selectedAgentId = id;
+  };
+
   const ch = officeState.characters.get(agentId);
   if (!ch) return null;
 
@@ -89,6 +117,14 @@ export function AgentDetailPanel({
     ch.bubbleType === 'permission' || (tools?.some((t) => t.permissionWait && !t.done) ?? false);
   const recent = (tools ?? []).slice(-AGENT_DETAIL_RECENT_TOOLS).reverse();
   const subs = subagentCharacters.filter((s) => s.parentAgentId === agentId);
+  // Real links only: a teammate's lead / a subagent's parent, and the agents
+  // that name this one as theirs. Never inferred from a shared directory.
+  const parentId = ch.leadAgentId ?? ch.parentAgentId ?? undefined;
+  const parent = parentId !== undefined ? officeState.characters.get(parentId) : undefined;
+  const linked = [...officeState.characters.values()].filter(
+    (c) => c.leadAgentId === agentId && !c.isSubagent,
+  );
+  const history = getAgentHistory(agentId).slice(-AGENT_DETAIL_HISTORY_ROWS).reverse();
   const contextPct =
     ch.contextReported && ch.maxContextTokens > 0
       ? Math.round((ch.contextTokens / ch.maxContextTokens) * 100)
@@ -103,45 +139,70 @@ export function AgentDetailPanel({
       }`}
       style={mobile ? undefined : { width: AGENT_DETAIL_PANEL_WIDTH_PX }}
       data-testid="agent-detail-panel"
-      aria-label="Agent details"
+      aria-labelledby={headingId}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
     >
       <div className="flex items-start gap-8">
         <div className="flex flex-col min-w-0 flex-1">
-          <span className="text-lg leading-none overflow-hidden text-ellipsis whitespace-nowrap">
+          <h2
+            id={headingId}
+            ref={headingRef}
+            tabIndex={-1}
+            className="text-lg font-normal leading-none overflow-hidden text-ellipsis whitespace-nowrap outline-none"
+          >
             {ch.agentName || ch.directoryName || `Agent ${agentId}`}
-          </span>
+          </h2>
           <span className="text-text-muted leading-none">
             {providerName(ch.directoryName)}
             {ch.isSubagent ? ' · subagent' : ''}
             {ch.isTeamLead ? ' · lead' : ''}
           </span>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose} title="Close panel">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          title="Close panel"
+          aria-label="Close panel"
+        >
           <PixelIcon name="close" />
         </Button>
       </div>
 
-      {hidden && (
-        <div className="text-text-muted leading-tight" data-testid="agent-detail-hidden">
-          Hidden from the office (this browser only). It keeps working; unhide to see it again.
-        </div>
-      )}
+      {/* Always mounted, so changes inside it (an approval request appearing)
+          are announced; the rest of the panel re-renders every second and
+          must not be live. */}
+      <div role="status" aria-live="polite" className="flex flex-col gap-10 empty:-mt-10">
+        {hidden && (
+          <div className="text-text-muted leading-tight" data-testid="agent-detail-hidden">
+            Hidden from the office (this browser only). It keeps working; unhide to see it again.
+          </div>
+        )}
 
-      {!needsApproval && life?.permissionSuspected && (
-        <div className="text-text-muted leading-tight" data-testid="agent-detail-suspected">
-          Maybe waiting for approval: a tool has run a while with no update. Guessed, not reported —
-          a long command looks the same.
-        </div>
-      )}
+        {!needsApproval && life?.permissionSuspected && (
+          <div className="text-text-muted leading-tight" data-testid="agent-detail-suspected">
+            Maybe waiting for approval: a tool has run a while with no update. Guessed, not reported
+            — a long command looks the same.
+          </div>
+        )}
 
-      {needsApproval && (
-        <div className="approval-glow p-8 flex flex-col gap-2" data-testid="agent-detail-approval">
-          <span className="font-bold">Needs your approval</span>
-          <span className="break-words">
-            {approvalTool ? approvalTool.status : 'Check the agent’s terminal'}
-          </span>
-        </div>
-      )}
+        {needsApproval && (
+          <div
+            className="approval-glow p-8 flex flex-col gap-2"
+            data-testid="agent-detail-approval"
+          >
+            <span className="font-bold">Needs your approval</span>
+            <span className="break-words">
+              {approvalTool ? approvalTool.status : 'Check the agent’s terminal'}
+            </span>
+          </div>
+        )}
+      </div>
 
       <div className="flex flex-col gap-4">
         <Row label="Doing">
@@ -167,7 +228,16 @@ export function AgentDetailPanel({
             {recent.map((t) => (
               <li key={t.toolId} className="flex gap-6 leading-tight">
                 <span className="shrink-0 w-12">
-                  {t.permissionWait && !t.done ? '!' : t.done ? '✓' : '…'}
+                  <span aria-hidden="true">
+                    {t.permissionWait && !t.done ? '!' : t.done ? '✓' : '…'}
+                  </span>
+                  <span className="sr-only">
+                    {t.permissionWait && !t.done
+                      ? 'Needs approval:'
+                      : t.done
+                        ? 'Done:'
+                        : 'Running:'}
+                  </span>
                 </span>
                 <span className={`min-w-0 break-words ${t.done ? 'text-text-muted' : ''}`}>
                   {t.status}
@@ -177,6 +247,38 @@ export function AgentDetailPanel({
           </ul>
         )}
       </div>
+
+      {(parent || linked.length > 0) && (
+        <div className="flex flex-col gap-4">
+          {parent && (
+            <Row label="Parent">
+              <button
+                type="button"
+                className="underline cursor-pointer text-left"
+                onClick={() => jumpTo(parent.id)}
+              >
+                {nameOf(parent)}
+              </button>
+            </Row>
+          )}
+          {linked.length > 0 && (
+            <Row label="Linked">
+              <span className="flex flex-col">
+                {linked.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="underline cursor-pointer text-left"
+                    onClick={() => jumpTo(c.id)}
+                  >
+                    {nameOf(c)}
+                  </button>
+                ))}
+              </span>
+            </Row>
+          )}
+        </div>
+      )}
 
       {subs.length > 0 && (
         <div className="flex flex-col gap-4">
@@ -192,6 +294,27 @@ export function AgentDetailPanel({
                 </li>
               );
             })}
+          </ul>
+        </div>
+      )}
+
+      {history.length > 0 && (
+        <div className="flex flex-col gap-4">
+          <span className="text-text-muted">Recent activity</span>
+          <ul className="flex flex-col gap-2">
+            {history.map((e, i) => (
+              <li key={`${e.at}-${i}`} className="flex gap-6 leading-tight">
+                <span className="shrink-0 text-text-muted">{clock(e.at)}</span>
+                <span className="min-w-0 break-words">
+                  {e.kind === 'tool_failed'
+                    ? 'A tool failed'
+                    : `${lifecycleText(e.lifecycle!)}${e.observed ? '' : ' (guessed)'}`}
+                  {e.project && e.project !== ch.directoryName ? (
+                    <span className="text-text-muted"> · {e.project}</span>
+                  ) : null}
+                </span>
+              </li>
+            ))}
           </ul>
         </div>
       )}

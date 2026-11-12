@@ -17,6 +17,9 @@ import {
   TOOL_OVERLAY_VERTICAL_OFFSET,
 } from '../../constants.js';
 
+/** Link lines meet a character this far above its feet (world px, mid-body). */
+const LINK_LINE_ANCHOR_OFFSET_PX = 10;
+
 /** Side of the '!' beacon shown when no permission bubble sprite is up (CSS px). */
 const APPROVAL_BEACON_SIZE_PX = 18;
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
@@ -113,8 +116,45 @@ export function ToolOverlay({
   // All character IDs
   const allIds = [...agents, ...subagentCharacters.map((s) => s.id)];
 
+  // The selected agent's real links (lead/parent and the agents naming it as
+  // theirs), drawn as dashed lines; hidden or filtered ends are left out.
+  const linkLines: Array<{ key: string; x1: number; y1: number; x2: number; y2: number }> = [];
+  const sel = selectedId !== null ? officeState.characters.get(selectedId) : undefined;
+  if (sel && selectedId !== null && !officeState.isHidden(selectedId)) {
+    const at = (c: { x: number; y: number }) => ({
+      x: project.toScreenX(c.x),
+      y: project.toScreenY(c.y - LINK_LINE_ANCHOR_OFFSET_PX),
+    });
+    const from = at(sel);
+    const parentId = sel.leadAgentId ?? sel.parentAgentId ?? undefined;
+    const ends = [...officeState.characters.values()].filter(
+      (c) => c.id === parentId || c.leadAgentId === selectedId || c.parentAgentId === selectedId,
+    );
+    for (const c of ends) {
+      if (officeState.isHidden(c.id)) continue;
+      const to = at(c);
+      linkLines.push({ key: `${selectedId}-${c.id}`, x1: from.x, y1: from.y, x2: to.x, y2: to.y });
+    }
+  }
+
   return (
     <>
+      {linkLines.length > 0 && (
+        <svg
+          className="absolute inset-0 w-full h-full pointer-events-none"
+          data-testid="agent-links"
+        >
+          {linkLines.map(({ key, ...l }) => (
+            <line
+              key={key}
+              {...l}
+              stroke="var(--color-accent)"
+              strokeWidth={2}
+              strokeDasharray="6 4"
+            />
+          ))}
+        </svg>
+      )}
       {allIds.map((id) => {
         const ch = officeState.characters.get(id);
         if (!ch || officeState.isHidden(id)) return null;

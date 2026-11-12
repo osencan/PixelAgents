@@ -87,6 +87,8 @@ components:
         # Agent status / tool activity
         - $ref: '#/components/schemas/AgentStatus'
         - $ref: '#/components/schemas/AgentLifecycle'
+        - $ref: '#/components/schemas/AgentToolFailed'
+        - $ref: '#/components/schemas/AgentHistory'
         - $ref: '#/components/schemas/AgentDirectoryChanged'
         - $ref: '#/components/schemas/AgentToolStart'
         - $ref: '#/components/schemas/AgentToolDone'
@@ -329,6 +331,58 @@ components:
         since:
           type: integer
           description: Epoch ms when this state began.
+        replayed:
+          type: boolean
+          description: >-
+            Sent as part of a reconnect snapshot: the state is current, but it
+            did not just change (clients must not notify on it).
+
+    AgentToolFailed:
+      description: A tool call failed (no tool content is included).
+      type: object
+      additionalProperties: false
+      required: [type, id, at]
+      properties:
+        type:
+          const: agentToolFailed
+        id:
+          type: integer
+        at:
+          type: integer
+
+    AgentHistory:
+      description: >-
+        An agent's recent history (bounded, in memory, metadata only), sent on
+        reconnect. Live changes arrive as agentLifecycle / agentToolFailed.
+      type: object
+      additionalProperties: false
+      required: [type, id, entries]
+      properties:
+        type:
+          const: agentHistory
+        id:
+          type: integer
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentHistoryEntry'
+
+    AgentHistoryEntry:
+      type: object
+      additionalProperties: false
+      required: [kind, at]
+      properties:
+        kind:
+          type: string
+          enum: [state, tool_failed]
+        lifecycle:
+          $ref: '#/components/schemas/AgentLifecycleState'
+        observed:
+          type: boolean
+        at:
+          type: integer
+        project:
+          type: string
 
     AgentLifecycleState:
       type: string

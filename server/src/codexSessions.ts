@@ -183,6 +183,17 @@ export class CodexOfficeBridge {
         lastDataAt: s.updated,
       });
       agent.projectCwd = s.cwd;
+      // A subagent whose parent session is in the office is linked to it (a
+      // real parent id from the rollout, never inferred from a shared cwd):
+      // it takes the teammate path -- parent's look, a desk near it, a badge.
+      const parent = s.parent ? this.tracked.get(s.parent) : undefined;
+      const parentAgent = parent ? this.store.get(parent.id) : undefined;
+      if (parentAgent) {
+        agent.leadAgentId = parentAgent.id;
+        agent.agentName = 'subagent';
+        agent.palette = parentAgent.palette;
+        agent.repeat = parentAgent.repeat;
+      }
       assignPaletteIfNeeded(agent, this.store);
       this.store.set(id, agent);
       entry = { id, signature: '' };

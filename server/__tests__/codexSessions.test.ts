@@ -178,5 +178,26 @@ describe('office integration', () => {
     s.parent = 'parent';
     bridge.sync(s);
     expect([...store.values()][0].directoryName).toContain('subagent');
+    // No parent in the office: no link is invented.
+    expect([...store.values()][0].leadAgentId).toBeUndefined();
+  });
+  test('a subagent links to its parent only when the parent session is in the office', () => {
+    const store = new AgentStateStore();
+    const bridge = new CodexOfficeBridge(store);
+    const parent = session();
+    bridge.sync(parent);
+    const parentAgent = [...store.values()][0];
+    const child = session();
+    child.id = 'child-session';
+    child.parent = 'test-session';
+    bridge.sync(child);
+    const childAgent = [...store.values()].find((a) => a.sessionId === 'codex:child-session')!;
+    expect(childAgent.leadAgentId).toBe(parentAgent.id);
+    expect(childAgent.agentName).toBe('subagent');
+    expect(childAgent.palette).toBe(parentAgent.palette);
+    // The parent stays intact when the child finishes and expires.
+    bridge.remove('child-session');
+    expect(store.has(parentAgent.id)).toBe(true);
+    expect(store.has(childAgent.id)).toBe(false);
   });
 });

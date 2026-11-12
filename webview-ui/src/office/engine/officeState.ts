@@ -12,6 +12,7 @@ import {
   MAX_PET_ID_LENGTH,
   PET_HIT_HALF_WIDTH,
   PET_HIT_HEIGHT,
+  ROOM_MIN_SPACING_TILES,
   ROOM_RESERVATION_RETRY_SEC,
   WAITING_BUBBLE_DURATION_SEC,
 } from '../../constants.js';
@@ -943,6 +944,16 @@ export class OfficeState {
     }
   }
 
+  /** Follow the server's explicit lifecycle into idle: a session that is
+   *  first seen already idle gets no agentStatus 'waiting', and would otherwise
+   *  keep the active state every character starts with (sitting at its desk
+   *  instead of going to the rest room until a reload). */
+  applyLifecycle(id: number, lifecycle: string): void {
+    const ch = this.characters.get(id);
+    if (!ch?.isActive) return;
+    if (lifecycle === 'idle' || lifecycle === 'waiting_input') this.setAgentActive(id, false);
+  }
+
   /** Start an agent at rest: not working, and seated for a usual rest when it has a chair
    *  (then it gets up and wanders); without one it stands at once. */
   restAgent(id: number): void {
@@ -1382,21 +1393,30 @@ export class OfficeState {
     }
     this.roomReservations.delete(ch.id);
     if ((this.roomRetryAt.get(ch.id) ?? 0) > this.roomClock) return none;
-    const taken = new Set([...this.roomReservations.values()].map((r) => `${r.col},${r.row}`));
-    for (let i = 0; i < tiles.length; i++) {
-      // Spread characters across the room rather than queueing on one tile.
-      const t = tiles[(Math.abs(ch.id) + i) % tiles.length];
-      if (taken.has(`${t.col},${t.row}`)) continue;
-      const here = ch.tileCol === t.col && ch.tileRow === t.row;
-      if (
-        !here &&
-        findPath(ch.tileCol, ch.tileRow, t.col, t.row, this.tileMap, this.blockedTiles).length === 0
-      ) {
-        continue;
+    const taken = [...this.roomReservations.values()];
+    // Keep a little distance: first look for a tile at least ROOM_MIN_SPACING_TILES
+    // from everyone already there; only a crowded room packs agents side by side.
+    for (const minSpacing of [ROOM_MIN_SPACING_TILES, 1]) {
+      for (let i = 0; i < tiles.length; i++) {
+        // Spread characters across the room rather than queueing on one tile.
+        const t = tiles[(Math.abs(ch.id) + i) % tiles.length];
+        if (
+          taken.some((r) => Math.max(Math.abs(r.col - t.col), Math.abs(r.row - t.row)) < minSpacing)
+        ) {
+          continue;
+        }
+        const here = ch.tileCol === t.col && ch.tileRow === t.row;
+        if (
+          !here &&
+          findPath(ch.tileCol, ch.tileRow, t.col, t.row, this.tileMap, this.blockedTiles).length ===
+            0
+        ) {
+          continue;
+        }
+        this.roomReservations.set(ch.id, { purpose, col: t.col, row: t.row });
+        this.roomRetryAt.delete(ch.id);
+        return { tiles: [t], whileActive };
       }
-      this.roomReservations.set(ch.id, { purpose, col: t.col, row: t.row });
-      this.roomRetryAt.delete(ch.id);
-      return { tiles: [t], whileActive };
     }
     this.roomRetryAt.set(ch.id, this.roomClock + ROOM_RESERVATION_RETRY_SEC);
     return none;

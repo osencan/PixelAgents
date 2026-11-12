@@ -177,3 +177,41 @@ describe('room purposes', () => {
     expect(office.roomReservation(1)).toBeUndefined();
   });
 });
+
+describe('room spacing', () => {
+  it('leaves an empty tile between resting agents while the room has space', () => {
+    const tiles = Array(COLS * ROWS).fill(TileType.FLOOR_1);
+    const areaTiles: (string | null)[] = Array(COLS * ROWS).fill(null);
+    for (let c = 2; c <= 7; c++) areaTiles[2 * COLS + c] = 'Lounge';
+    const office = new OfficeState({
+      version: 1,
+      cols: COLS,
+      rows: ROWS,
+      tiles,
+      furniture: [],
+      areas: [{ label: 'Lounge', color: '#ffffff', purpose: 'rest' }],
+      areaTiles,
+    });
+    for (const id of [1, 2, 3]) addIdle(office, id);
+    run(office, 20);
+    const cols = [1, 2, 3].map((id) => office.roomReservation(id)!.col).sort((a, b) => a - b);
+    for (let i = 1; i < cols.length; i++) expect(cols[i] - cols[i - 1]).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('newly created idle agents', () => {
+  it('go to the rest room when the server reports them idle, without a reload', () => {
+    const office = new OfficeState(layout());
+    office.addAgent(5, 0, 0, undefined, true, 'Website');
+    const ch = office.characters.get(5)!;
+    ch.matrixEffect = null;
+    expect(ch.isActive).toBe(true); // every character starts active
+    office.applyLifecycle(5, 'running');
+    expect(ch.isActive).toBe(true);
+    office.applyLifecycle(5, 'idle');
+    expect(ch.isActive).toBe(false);
+    run(office, 20);
+    expect(office.roomReservation(5)?.purpose).toBe('rest');
+    expect(['6,2', '7,2']).toContain(`${ch.tileCol},${ch.tileRow}`);
+  });
+});

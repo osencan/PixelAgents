@@ -17,6 +17,23 @@ import type { AgentState } from './types.js';
 export const LIFECYCLE_STALE_AFTER_MS = 10 * 60_000;
 /** How often silence is re-checked (event-driven otherwise). */
 const LIFECYCLE_RECHECK_MS = 15_000;
+/** Most recent history entries kept per agent (in memory only). */
+export const AGENT_HISTORY_MAX = 30;
+
+/**
+ * One history entry: metadata only -- a state change or a failed tool, when,
+ * and the project label at the time. Never prompts, commands, arguments or
+ * output.
+ */
+export type AgentHistoryEntry =
+  | {
+      kind: 'state';
+      lifecycle: AgentLifecycleState;
+      observed: boolean;
+      at: number;
+      project?: string;
+    }
+  | { kind: 'tool_failed'; at: number; project?: string };
 
 const READING_TOOLS = new Set([
   'Read',
@@ -46,7 +63,9 @@ function codexCategory(status: string): AgentLifecycleState {
 }
 
 function toolCategory(agent: AgentState): AgentLifecycleState | undefined {
-  const toolIds = [...agent.activeToolIds];
+  // Background spawns stay in activeToolIds while their helper runs, across
+  // the lead's turns; they are not what the lead itself is doing.
+  const toolIds = [...agent.activeToolIds].filter((id) => !agent.backgroundSpawns.has(id));
   const latest = toolIds.at(-1);
   if (latest === undefined) return undefined;
   if (agent.providerId === 'codex')
@@ -58,7 +77,12 @@ function toolCategory(agent: AgentState): AgentLifecycleState | undefined {
   return 'working';
 }
 
-export function deriveLifecycle(agent: AgentState, now = Date.now()): LifecycleView {
+export function deriveLifecycle(
+  agent: AgentState,
+  now = Date.now(),
+  /** Last provider event seen for the agent (hooks don't touch lastDataAt). */
+  lastEventAt = 0,
+): LifecycleView {
   // Hooks (Claude) and the Codex log observer report events; a transcript-only
   // Claude session is reconstructed from the transcript, so it is inferred.
   const observed = agent.hookDelivered === true;
@@ -75,7 +99,7 @@ export function deriveLifecycle(agent: AgentState, now = Date.now()): LifecycleV
   }
   const tool = toolCategory(agent);
   if (tool) return { lifecycle: tool, observed, permissionSuspected: suspected };
-  if (now - agent.lastDataAt > LIFECYCLE_STALE_AFTER_MS) {
+  if (now - Math.max(agent.lastDataAt, lastEventAt) > LIFECYCLE_STALE_AFTER_MS) {
     return { lifecycle: 'unknown', observed: false, permissionSuspected: false };
   }
   return { lifecycle: 'thinking', observed, permissionSuspected: suspected };
@@ -85,7 +109,7 @@ interface Tracked extends LifecycleView {
   since: number;
 }
 
-function lifecycleMessage(id: number, t: Tracked): Record<string, unknown> {
+function lifecycleMessage(id: number, t: Tracked, replayed = false): Record<string, unknown> {
   return {
     type: 'agentLifecycle',
     id,
@@ -93,11 +117,13 @@ function lifecycleMessage(id: number, t: Tracked): Record<string, unknown> {
     observed: t.observed,
     permissionSuspected: t.permissionSuspected || undefined,
     since: t.since,
+    // A reconnect replay: the state is current, but nothing just happened.
+    replayed: replayed || undefined,
   };
 }
 
 export interface AgentLifecycleService {
-  /** Current states, for a (re)connecting client. */
+  /** Current states and recent history, for a (re)connecting client. */
   snapshot(send: (message: Record<string, unknown>) => void): void;
   dispose(): void;
 }
@@ -116,6 +142,15 @@ export function sendLifecycleSnapshot(
 export function startAgentLifecycle(store: AgentStateStore): AgentLifecycleService {
   const tracked = new Map<number, Tracked>();
   const scheduled = new Set<number>();
+  // Last time any message about the agent went out (a provider event happened).
+  const lastEventAt = new Map<number, number>();
+  const history = new Map<number, AgentHistoryEntry[]>();
+  const record = (id: number, entry: AgentHistoryEntry) => {
+    const list = history.get(id) ?? [];
+    list.push(entry);
+    if (list.length > AGENT_HISTORY_MAX) list.splice(0, list.length - AGENT_HISTORY_MAX);
+    history.set(id, list);
+  };
 
   const evaluate = (id: number) => {
     const agent = store.get(id);
@@ -123,7 +158,7 @@ export function startAgentLifecycle(store: AgentStateStore): AgentLifecycleServi
       tracked.delete(id);
       return;
     }
-    const view = deriveLifecycle(agent);
+    const view = deriveLifecycle(agent, Date.now(), lastEventAt.get(id));
     const prev = tracked.get(id);
     if (
       prev &&
@@ -135,6 +170,15 @@ export function startAgentLifecycle(store: AgentStateStore): AgentLifecycleServi
     }
     const next = { ...view, since: prev?.lifecycle === view.lifecycle ? prev.since : Date.now() };
     tracked.set(id, next);
+    if (prev?.lifecycle !== next.lifecycle) {
+      record(id, {
+        kind: 'state',
+        lifecycle: next.lifecycle,
+        observed: next.observed,
+        at: next.since,
+        project: agent.directoryName,
+      });
+    }
     store.broadcast(lifecycleMessage(id, next));
   };
 
@@ -151,10 +195,24 @@ export function startAgentLifecycle(store: AgentStateStore): AgentLifecycleServi
 
   const onBroadcast = (message: Record<string, unknown>) => {
     if (message.type === 'agentLifecycle' || typeof message.id !== 'number') return;
+    // Only agents in the store have a lifecycle (and a history to clean up).
+    if (!store.has(message.id)) return;
+    lastEventAt.set(message.id, Date.now());
+    if (message.type === 'agentToolFailed') {
+      record(message.id, {
+        kind: 'tool_failed',
+        at: typeof message.at === 'number' ? message.at : Date.now(),
+        project: store.get(message.id)?.directoryName,
+      });
+    }
     schedule(message.id);
   };
   const onAdded = (id: number) => schedule(id);
-  const onRemoved = (id: number) => tracked.delete(id);
+  const onRemoved = (id: number) => {
+    tracked.delete(id);
+    history.delete(id);
+    lastEventAt.delete(id);
+  };
 
   store.on('broadcast', onBroadcast);
   store.on('agentAdded', onAdded);
@@ -170,7 +228,9 @@ export function startAgentLifecycle(store: AgentStateStore): AgentLifecycleServi
       for (const [id] of store) {
         if (!tracked.has(id)) evaluate(id);
         const t = tracked.get(id);
-        if (t) send(lifecycleMessage(id, t));
+        if (t) send(lifecycleMessage(id, t, true));
+        const entries = history.get(id);
+        if (entries?.length) send({ type: 'agentHistory', id, entries });
       }
     },
     dispose() {

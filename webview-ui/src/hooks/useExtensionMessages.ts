@@ -7,7 +7,13 @@ import { castStore } from '../characters/castStore.js';
 import { startOfficeSync } from '../characters/officeSprites.js';
 import { cardOrderOf } from '../components/cardBar.js';
 import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
-import { clearAgentLifecycle, setAgentLifecycle } from '../office/agentLifecycles.js';
+import type { AgentHistoryEntry } from '../office/agentHistory.js';
+import { appendAgentHistory, clearAgentHistory, setAgentHistory } from '../office/agentHistory.js';
+import {
+  clearAgentLifecycle,
+  getAgentLifecycle,
+  setAgentLifecycle,
+} from '../office/agentLifecycles.js';
 import { clearAgentContextUsed, setAgentContextUsed } from '../office/contextGauge.js';
 import type { ExistingAgentMeta, PendingAgent } from '../office/engine/existingAgents.js';
 import {
@@ -21,6 +27,12 @@ import { setFloorSprites } from '../office/floorTiles.js';
 import { clearAgentKey, isReusedId, setAgentKey } from '../office/hiddenAgents.js';
 import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js';
 import { migrateLayoutColors } from '../office/layout/layoutSerializer.js';
+import {
+  dismissAgentToasts,
+  lifecycleNotice,
+  NOTICE_TEXT,
+  pushToast,
+} from '../office/notifications.js';
 import { setCarpetSprites } from '../office/sprites/carpetTiles.js';
 import { setPetTemplates } from '../office/sprites/petSpriteData.js';
 import {
@@ -290,6 +302,8 @@ export function useExtensionMessages(
       setSelectedAgent((prev) => (prev === id ? null : prev));
       clearAgentKey(id);
       clearAgentLifecycle(id);
+      clearAgentHistory(id);
+      for (const kind of ['approval', 'finished', 'failed'] as const) dismissAgentToasts(id, kind);
       // Drop the drawer tab too. terminalSessionClosed normally does this, but
       // an agent can be removed without its PTY ever reporting an exit (e.g.
       // stale cleanup), and a tab for a gone agent would attach to nothing.
@@ -640,12 +654,52 @@ export function useExtensionMessages(
         const id = msg.id as number;
         setSelectedAgent(id);
       } else if (msg.type === 'agentLifecycle') {
-        setAgentLifecycle(msg.id as number, {
+        const id = msg.id as number;
+        const next = {
           lifecycle: msg.lifecycle as AgentLifecycleState,
           observed: msg.observed === true,
           permissionSuspected: msg.permissionSuspected === true,
           since: msg.since as number,
-        });
+        };
+        const prev = getAgentLifecycle(id);
+        setAgentLifecycle(id, next);
+        os.applyLifecycle(id, next.lifecycle);
+        // An answered approval request: its notice has done its job.
+        if (prev?.lifecycle === 'waiting_permission' && next.lifecycle !== 'waiting_permission') {
+          dismissAgentToasts(id, 'approval');
+        }
+        // A reconnect replay restates the current state: no history, no notice.
+        if (msg.replayed !== true && prev?.lifecycle !== next.lifecycle) {
+          const project = os.characters.get(id)?.directoryName;
+          appendAgentHistory(id, {
+            kind: 'state',
+            lifecycle: next.lifecycle,
+            observed: next.observed,
+            at: next.since,
+            project,
+          });
+          const kind = lifecycleNotice(prev, next);
+          if (kind && !os.isHidden(id)) {
+            pushToast({
+              agentId: id,
+              kind,
+              text: `${project ?? `Agent ${id}`} ${NOTICE_TEXT[kind]}`,
+            });
+          }
+        }
+      } else if (msg.type === 'agentHistory') {
+        setAgentHistory(msg.id as number, msg.entries as AgentHistoryEntry[]);
+      } else if (msg.type === 'agentToolFailed') {
+        const id = msg.id as number;
+        const project = os.characters.get(id)?.directoryName;
+        appendAgentHistory(id, { kind: 'tool_failed', at: msg.at as number, project });
+        if (!os.isHidden(id)) {
+          pushToast({
+            agentId: id,
+            kind: 'failed',
+            text: `${project ?? `Agent ${id}`} ${NOTICE_TEXT.failed}`,
+          });
+        }
       } else if (msg.type === 'agentStatus') {
         const id = msg.id as number;
         const status = msg.status as string;

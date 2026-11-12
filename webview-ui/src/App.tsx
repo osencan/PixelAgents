@@ -5,6 +5,7 @@ import { CharactersView } from './characters/ui/CharactersView.js';
 import { AgentCardBar } from './components/AgentCardBar.js';
 import { AgentDetailPanel } from './components/AgentDetailPanel.js';
 import { AgentFilter } from './components/AgentFilter.js';
+import { AgentToasts } from './components/AgentToasts.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChangelogModal } from './components/ChangelogModal.js';
 import { ConnectionIndicator } from './components/ConnectionIndicator.js';
@@ -634,6 +635,8 @@ function App() {
               sidebar={hasSidebar ? { open: sidebar.open, onToggle: sidebar.toggle } : undefined}
             />
           )}
+
+          <AgentToasts officeState={officeState} />
 
           {/* Without the bottom toolbar (phone, read-only), the filter floats;
               otherwise it sits in the toolbar beside Settings. */}

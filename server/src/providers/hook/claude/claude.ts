@@ -177,8 +177,9 @@ function normalizeHookEvent(
     }
 
     case 'PostToolUse':
-    case 'PostToolUseFailure':
       return { sessionId, event: { kind: 'toolEnd', toolId: 'current' } };
+    case 'PostToolUseFailure':
+      return { sessionId, event: { kind: 'toolEnd', toolId: 'current', failed: true } };
 
     case 'Stop':
       return { sessionId, event: { kind: 'turnEnd' } };

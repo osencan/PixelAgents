@@ -106,7 +106,93 @@ describe('startAgentLifecycle', () => {
 
     const replay: Array<Record<string, unknown>> = [];
     sendLifecycleSnapshot(store, (m) => replay.push(m));
-    expect(replay).toEqual([seen.at(-1)]);
+    expect(replay[0]).toEqual({ ...seen.at(-1), replayed: true });
+    expect(replay[1]).toMatchObject({ type: 'agentHistory', id: 1 });
+    service.dispose();
+  });
+});
+
+describe('agent history', () => {
+  it('records state changes and failures (metadata only), bounded, and replays them marked', async () => {
+    const { AGENT_HISTORY_MAX } = await import('../src/agentLifecycle.js');
+    const store = new AgentStateStore();
+    const a = agent({ directoryName: 'Website' });
+    store.set(1, a);
+    const service = startAgentLifecycle(store);
+    await Promise.resolve();
+
+    withTool(a, 'Bash');
+    store.broadcast({ type: 'agentStatus', id: 1, status: 'active' });
+    await Promise.resolve();
+    store.broadcast({ type: 'agentToolFailed', id: 1, at: 123 });
+    await Promise.resolve();
+
+    const replay: Array<Record<string, unknown>> = [];
+    sendLifecycleSnapshot(store, (m) => replay.push(m));
+    expect(replay[0]).toMatchObject({
+      type: 'agentLifecycle',
+      lifecycle: 'running',
+      replayed: true,
+    });
+    const history = replay.find((m) => m.type === 'agentHistory') as { entries: unknown[] };
+    expect(history.entries).toEqual([
+      {
+        kind: 'state',
+        lifecycle: 'idle',
+        observed: true,
+        at: expect.any(Number),
+        project: 'Website',
+      },
+      {
+        kind: 'state',
+        lifecycle: 'running',
+        observed: true,
+        at: expect.any(Number),
+        project: 'Website',
+      },
+      { kind: 'tool_failed', at: 123, project: 'Website' },
+    ]);
+    expect(JSON.stringify(history)).not.toContain('Bash');
+
+    for (let i = 0; i < AGENT_HISTORY_MAX + 5; i++) {
+      store.broadcast({ type: 'agentToolFailed', id: 1, at: i });
+    }
+    const again: Array<Record<string, unknown>> = [];
+    sendLifecycleSnapshot(store, (m) => again.push(m));
+    const bounded = again.find((m) => m.type === 'agentHistory') as { entries: unknown[] };
+    expect(bounded.entries).toHaveLength(AGENT_HISTORY_MAX);
+    service.dispose();
+  });
+});
+
+describe('lifecycle review fixes', () => {
+  it('ignores background spawns still listed as active tools (B.1)', () => {
+    const lead = withTool(agent(), 'Agent');
+    lead.backgroundSpawns.set('t1', {});
+    expect(deriveLifecycle(lead).lifecycle).toBe('thinking');
+    lead.activeToolIds.add('t2');
+    lead.activeToolNames.set('t2', 'Read');
+    expect(deriveLifecycle(lead).lifecycle).toBe('reading');
+  });
+
+  it('counts recent provider events as activity, not just transcript data (B.2)', () => {
+    const now = Date.now();
+    const turn = agent({ turnActive: true, lastDataAt: 0 });
+    expect(deriveLifecycle(turn, now).lifecycle).toBe('unknown');
+    expect(deriveLifecycle(turn, now, now - 1000).lifecycle).toBe('thinking');
+  });
+
+  it('keeps no history for ids that are not (or no longer) in the store (B.3)', async () => {
+    const store = new AgentStateStore();
+    store.set(1, agent());
+    const service = startAgentLifecycle(store);
+    store.broadcast({ type: 'agentToolFailed', id: 42, at: 1 });
+    store.delete(1);
+    store.broadcast({ type: 'agentToolFailed', id: 1, at: 2 });
+    await Promise.resolve();
+    const replay: Array<Record<string, unknown>> = [];
+    sendLifecycleSnapshot(store, (m) => replay.push(m));
+    expect(replay).toEqual([]);
     service.dispose();
   });
 });

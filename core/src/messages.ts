@@ -15,6 +15,8 @@ export type ServerMessage =
   | ExistingAgents
   | AgentStatus
   | AgentLifecycle
+  | AgentToolFailed
+  | AgentHistory
   | AgentDirectoryChanged
   | AgentToolStart
   | AgentToolDone
@@ -151,6 +153,7 @@ export interface AgentLifecycle {
   observed: boolean;
   permissionSuspected?: boolean;
   since: number;
+  replayed?: boolean;
 }
 
 export type AgentLifecycleState =
@@ -163,6 +166,28 @@ export type AgentLifecycleState =
   | 'waiting_input'
   | 'idle'
   | 'unknown';
+
+export interface AgentToolFailed {
+  type: 'agentToolFailed';
+  id: number;
+  at: number;
+}
+
+export interface AgentHistory {
+  type: 'agentHistory';
+  id: number;
+  entries: AgentHistoryEntry[];
+}
+
+export interface AgentHistoryEntry {
+  kind: AnonymousSchema_46;
+  lifecycle?: AgentLifecycleState;
+  observed?: boolean;
+  at: number;
+  project?: string;
+}
+
+export type AnonymousSchema_46 = 'state' | 'tool_failed';
 
 export interface AgentDirectoryChanged {
   type: 'agentDirectoryChanged';

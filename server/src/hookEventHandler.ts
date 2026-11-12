@@ -355,9 +355,12 @@ export class HookEventHandler {
       case 'toolStart':
         return this.handlePreToolUse(normEvent, agent, agentId);
       case 'toolEnd':
-        // Both PostToolUse and PostToolUseFailure normalize to toolEnd. Distinguishing
-        // them inside handlers would require extra info; the existing behavior was
-        // identical for both (agentToolDone + clear currentHookToolId), so one branch suffices.
+        // Both PostToolUse and PostToolUseFailure end the tool the same way; a
+        // failure is additionally reported (history / notifications), without
+        // any of the tool's content.
+        if (normEvent.failed) {
+          this.agents.broadcast({ type: 'agentToolFailed', id: agentId, at: Date.now() });
+        }
         return this.handlePostToolUse(agent, agentId);
       case 'subagentStart':
         return this.provider.team ? this.handleSubagentStart(event, agent, agentId) : undefined;
