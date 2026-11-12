@@ -22,14 +22,25 @@ export interface AgentState {
    *  the completion queue-operation), see BackgroundSpawns. */
   backgroundSpawns: BackgroundSpawns;
   isWaiting: boolean;
+  /** Went idle waiting on the user (idle_prompt), vs. just finishing a turn. */
+  awaitingInput?: boolean;
   /** The office was last told this agent is active (agentStatus 'active', not
    *  yet 'waiting'), so a connecting client is told too: a turn between two
    *  tools has no live tool to say so. Unset for an agent with no turn seen. */
   turnActive?: boolean;
   permissionSent: boolean;
+  /** Guessed (no permission event): a non-exempt tool ran past the heuristic
+   *  timer without hooks. Shown as a hint, never as a confirmed request. */
+  permissionSuspected?: boolean;
   hadToolsInTurn: boolean;
   /** Directory name — the agent's origin label (only set for multi-root workspaces) */
   directoryName?: string;
+  /** Latest working directory a provider reported outside a transcript (Codex). */
+  projectCwd?: string;
+  /** Canonical project root (projectIdentity): label metadata, never identity. */
+  projectRoot?: string;
+  /** Linked worktree name when the cwd is in one (grouped under projectRoot). */
+  projectWorktree?: string;
   /** Timestamp of last JSONL data received (ms since epoch) */
   lastDataAt: number;
   /** Total JSONL lines processed for this agent */

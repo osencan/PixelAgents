@@ -14,6 +14,8 @@ export type ServerMessage =
   | AgentSelected
   | ExistingAgents
   | AgentStatus
+  | AgentLifecycle
+  | AgentDirectoryChanged
   | AgentToolStart
   | AgentToolDone
   | AgentToolsClear
@@ -100,6 +102,7 @@ export interface ProviderCapabilities {
 export interface AgentCreated {
   type: 'agentCreated';
   id: number;
+  agentKey?: string;
   directoryName?: string;
   isExternal?: boolean;
   palette?: number;
@@ -123,6 +126,7 @@ export interface ExistingAgents {
   agentMeta: Record<string, AgentSeatMeta>;
   directoryNames: Record<string, string>;
   externalAgents: Record<string, boolean>;
+  agentKeys?: Record<string, string>;
 }
 
 export interface AgentSeatMeta {
@@ -139,6 +143,32 @@ export interface AgentStatus {
 }
 
 export type AgentActivityStatus = 'active' | 'waiting';
+
+export interface AgentLifecycle {
+  type: 'agentLifecycle';
+  id: number;
+  lifecycle: AgentLifecycleState;
+  observed: boolean;
+  permissionSuspected?: boolean;
+  since: number;
+}
+
+export type AgentLifecycleState =
+  | 'thinking'
+  | 'reading'
+  | 'editing'
+  | 'running'
+  | 'working'
+  | 'waiting_permission'
+  | 'waiting_input'
+  | 'idle'
+  | 'unknown';
+
+export interface AgentDirectoryChanged {
+  type: 'agentDirectoryChanged';
+  id: number;
+  directoryName: string;
+}
 
 export interface AgentToolStart {
   type: 'agentToolStart';

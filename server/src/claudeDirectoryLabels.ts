@@ -1,18 +1,28 @@
-/** Claude may keep a rollout in its original project folder after changing cwd. */
+/**
+ * Project labels for Claude and Codex characters. Claude may keep a rollout in
+ * its original project folder after changing cwd, so its label follows the
+ * transcript's latest top-level cwd; Codex reports cwd through its observer.
+ * Labels are metadata: they never merge or reassign characters.
+ */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import type { AgentStateStore } from './agentStateStore.js';
+import { projectDisplayNames, resolveProject } from './projectIdentity.js';
+import type { AgentState } from './types.js';
+
+const CODEX_LABEL_PREFIX = 'Codex · ';
+const CODEX_SUBAGENT_SUFFIX = ' · subagent';
 
 export function projectNameForCwd(cwd: string): string | undefined {
-  if (!path.isAbsolute(cwd)) return undefined;
-  let dir = path.normalize(cwd);
-  while (true) {
-    if (fs.existsSync(path.join(dir, '.git'))) return path.basename(dir) || dir;
-    const parent = path.dirname(dir);
-    if (parent === dir) return path.basename(cwd) || cwd;
-    dir = parent;
-  }
+  return resolveProject(cwd)?.name;
+}
+
+/** The label shown for an agent whose project displays as `name`. */
+function labelFor(agent: AgentState, name: string): string {
+  if (agent.providerId !== 'codex') return name;
+  const sub = agent.directoryName?.endsWith(CODEX_SUBAGENT_SUFFIX) ? CODEX_SUBAGENT_SUFFIX : '';
+  return `${CODEX_LABEL_PREFIX}${name}${sub}`;
 }
 
 /** Read backwards in bounded chunks, without parsing prompts or nested tool output as cwd. */
@@ -57,26 +67,46 @@ export function latestClaudeCwd(file: string, sessionId?: string): string | unde
 }
 
 export function startClaudeDirectoryLabels(store: AgentStateStore): { dispose(): void } {
-  const checked = new Map<number, string>();
+  // Per Claude agent: the transcript state last read, and the cwd it gave.
+  const checked = new Map<number, { key: string; cwd?: string }>();
+  const cwdFor = (id: number, agent: AgentState): string | undefined => {
+    if (agent.providerId === 'codex') return agent.projectCwd;
+    if (!agent.jsonlFile) return undefined;
+    const stat = fs.statSync(agent.jsonlFile);
+    const key = `${agent.jsonlFile}:${stat.size}:${stat.mtimeMs}`;
+    const cached = checked.get(id);
+    if (cached?.key === key) return cached.cwd;
+    const cwd = latestClaudeCwd(agent.jsonlFile, agent.sessionId);
+    checked.set(id, { key, cwd });
+    return cwd;
+  };
   const refresh = () => {
+    const labelled: Array<[number, AgentState]> = [];
     for (const [id, agent] of store) {
-      if (agent.providerId === 'codex' || !agent.jsonlFile || agent.leadAgentId !== undefined)
-        continue;
+      // Teammates are labelled by their lead.
+      if (agent.leadAgentId !== undefined) continue;
       try {
-        const stat = fs.statSync(agent.jsonlFile);
-        const key = `${agent.jsonlFile}:${stat.size}:${stat.mtimeMs}`;
-        if (checked.get(id) === key) continue;
-        checked.set(id, key);
-        const cwd = latestClaudeCwd(agent.jsonlFile, agent.sessionId);
-        const name = cwd && projectNameForCwd(cwd);
-        if (!name || name === agent.directoryName) continue;
-        agent.directoryName = name;
-        store.broadcast({ type: 'agentDirectoryChanged', id, directoryName: name });
-        store.persist();
+        const cwd = cwdFor(id, agent);
+        const project = cwd ? resolveProject(cwd) : undefined;
+        if (project) {
+          agent.projectRoot = project.root;
+          agent.projectWorktree = project.worktree;
+        }
       } catch {
         /* missing or rotating logs are retried on the next poll */
       }
+      if (agent.projectRoot) labelled.push([id, agent]);
     }
+    const names = projectDisplayNames(labelled.map(([, agent]) => agent.projectRoot!));
+    let changed = false;
+    for (const [id, agent] of labelled) {
+      const name = labelFor(agent, names.get(agent.projectRoot!)!);
+      if (name === agent.directoryName) continue;
+      agent.directoryName = name;
+      store.broadcast({ type: 'agentDirectoryChanged', id, directoryName: name });
+      changed = true;
+    }
+    if (changed) store.persist();
     for (const id of checked.keys()) if (!store.has(id)) checked.delete(id);
   };
   const timer = setInterval(refresh, 2000);

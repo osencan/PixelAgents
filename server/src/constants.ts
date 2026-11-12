@@ -117,6 +117,12 @@ export const WS_CLOSE_FORBIDDEN_ORIGIN = 4003;
 export const WS_CLOSE_NO_SESSION = 4004;
 
 export const HOOK_EVENT_BUFFER_MS = 5_000;
+/** How long an ended session's late hook events are dropped (unless it resumes). */
+export const ENDED_SESSION_TOMBSTONE_MS = 30 * 60_000;
+/** Writes to an ended session's transcript within this window are its final
+ *  records, not a resume: the scanner does not re-adopt the file for them. */
+export const ENDED_SESSION_WRITE_GRACE_MS = 60_000;
+
 /** Grace period after SessionEnd(reason=clear/resume) before triggering onSessionEnd.
  *  /clear and /resume fire SessionEnd then SessionStart within ms. This timeout is a
  *  safety net: if SessionStart never arrives (e.g. the CLI crashes mid-transition),

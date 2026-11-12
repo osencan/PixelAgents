@@ -182,6 +182,7 @@ export class CodexOfficeBridge {
         directoryName: `Codex · ${path.basename(s.cwd) || s.cwd}${s.parent ? ' · subagent' : ''}`,
         lastDataAt: s.updated,
       });
+      agent.projectCwd = s.cwd;
       assignPaletteIfNeeded(agent, this.store);
       this.store.set(id, agent);
       entry = { id, signature: '' };
@@ -189,6 +190,8 @@ export class CodexOfficeBridge {
     }
     const agent = this.store.get(entry.id)!;
     agent.lastDataAt = s.updated;
+    // The label refresher (claudeDirectoryLabels) follows later cwd changes.
+    agent.projectCwd = s.cwd;
     const signature = JSON.stringify([s.phase, s.activity, s.reading]);
     if (signature === entry.signature) return;
     entry.signature = signature;

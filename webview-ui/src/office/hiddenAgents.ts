@@ -37,6 +37,17 @@ export function setAgentKey(id: number, key: string | undefined): void {
   changed();
 }
 
+/** The key last recorded for an id, if any. */
+export function getAgentKey(id: number): string | undefined {
+  return keyById.get(id);
+}
+
+/** True when a known id now arrives with a different session key. */
+export function isReusedId(id: number, key: string | undefined): boolean {
+  const known = keyById.get(id);
+  return known !== undefined && key !== undefined && known !== key;
+}
+
 /** Forget a closed agent's id (the key's hidden state is kept for its return). */
 export function clearAgentKey(id: number): void {
   if (keyById.delete(id)) changed();

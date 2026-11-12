@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AGENT_DETAIL_PANEL_WIDTH_PX, AGENT_DETAIL_RECENT_TOOLS } from '../constants.js';
 import type { SubagentCharacter } from '../hooks/useExtensionMessages.js';
 import { getActivityText, pendingApprovalTool, providerName } from '../office/agentActivity.js';
+import { getAgentLifecycle, lifecycleText } from '../office/agentLifecycles.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setAgentHidden, useIsAgentHidden } from '../office/hiddenAgents.js';
 import type { ToolActivity } from '../office/types.js';
@@ -82,6 +83,7 @@ export function AgentDetailPanel({
   if (!since.current || since.current.id !== agentId || since.current.text !== activity) {
     since.current = { id: agentId, text: activity, at: now };
   }
+  const life = getAgentLifecycle(agentId);
   const approvalTool = pendingApprovalTool(tools, ch.bubbleType === 'permission');
   const needsApproval =
     ch.bubbleType === 'permission' || (tools?.some((t) => t.permissionWait && !t.done) ?? false);
@@ -125,6 +127,13 @@ export function AgentDetailPanel({
         </div>
       )}
 
+      {!needsApproval && life?.permissionSuspected && (
+        <div className="text-text-muted leading-tight" data-testid="agent-detail-suspected">
+          Maybe waiting for approval: a tool has run a while with no update. Guessed, not reported —
+          a long command looks the same.
+        </div>
+      )}
+
       {needsApproval && (
         <div className="approval-glow p-8 flex flex-col gap-2" data-testid="agent-detail-approval">
           <span className="font-bold">Needs your approval</span>
@@ -136,7 +145,13 @@ export function AgentDetailPanel({
 
       <div className="flex flex-col gap-4">
         <Row label="Doing">{activity}</Row>
-        <Row label="For">{formatDuration(now - since.current.at)}</Row>
+        {life && (
+          <Row label="State">
+            {lifecycleText(life.lifecycle)}
+            <span className="text-text-muted">{life.observed ? ' · reported' : ' · guessed'}</span>
+          </Row>
+        )}
+        <Row label="For">{formatDuration(now - (life?.since ?? since.current.at))}</Row>
         {ch.directoryName && <Row label="Project">{ch.directoryName}</Row>}
         {contextPct !== null && <Row label="Context">{contextPct}% used</Row>}
       </div>

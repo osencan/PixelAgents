@@ -1,4 +1,10 @@
-import { ROSTER_ARROW_WIDTH_PX, ROSTER_HOVER_CLOSE_DELAY_MS } from '../constants.js';
+import type { ReactNode } from 'react';
+
+import {
+  ROSTER_ARROW_WIDTH_PX,
+  ROSTER_HOVER_CLOSE_DELAY_MS,
+  TOOLBAR_ROW_HEIGHT_CLASS,
+} from '../constants.js';
 import type { Directory } from '../hooks/useExtensionMessages.js';
 import { useHoverPin } from '../hooks/useHoverPin.js';
 import { popClass, usePresence } from '../hooks/usePresence.js';
@@ -16,6 +22,8 @@ interface BottomToolbarProps {
   onToggleSettings: () => void;
   /** False when the conversation sidebar holds Settings instead. */
   showSettings: boolean;
+  /** Drawn at the end of the button row, after Settings (the agent filter). */
+  trailing?: ReactNode;
   /** The Characters view is open (the button shows active). */
   isCharactersOpen: boolean;
   /** Opens the Characters view: editing a roster card, or its `+ New`. */
@@ -36,7 +44,7 @@ interface BottomToolbarProps {
 
 /** Every toolbar button's height: the labelled ones' natural height (26 px
  *  text + padding) rounded to whole pixels, so the + can be an exact square. */
-const ROW_HEIGHT = 'h-52';
+const ROW_HEIGHT = TOOLBAR_ROW_HEIGHT_CLASS;
 /** The + launch button: a square as tall as its row, the + centred (the
  *  phone's + card, MobileAgentBar). */
 const LAUNCH_SQUARE = 'size-52 flex items-center justify-center border-2 rounded-none select-none';
@@ -47,6 +55,7 @@ export function BottomToolbar({
   isSettingsOpen,
   onToggleSettings,
   showSettings,
+  trailing,
   isCharactersOpen,
   onOpenCharacters,
   directories,
@@ -237,6 +246,7 @@ export function BottomToolbar({
             Settings
           </Button>
         )}
+        {trailing}
       </div>
     </div>
   );

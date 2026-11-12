@@ -2,7 +2,7 @@ import * as path from 'path';
 
 import type { AgentEvent, HookProvider } from '../../core/src/provider.js';
 import type { AgentStateStore } from './agentStateStore.js';
-import { SESSION_END_GRACE_MS } from './constants.js';
+import { ENDED_SESSION_TOMBSTONE_MS, SESSION_END_GRACE_MS } from './constants.js';
 import { pathsMatch } from './pathKey.js';
 import type { SessionRouter } from './sessionRouter.js';
 import { getInlineTeammates, hasInlineTeammates, hasPromotedBackgroundAgent } from './teamUtils.js';
@@ -59,6 +59,19 @@ interface SessionLifecycleCallbacks {
 
 export class HookEventHandler {
   private lifecycleCallbacks: SessionLifecycleCallbacks = {};
+
+  /** Sessions that ended (exit/logout/abandoned clear), by end time. Late
+   *  events for them are dropped so an ended character is not resurrected;
+   *  a SessionStart for the same id (resume) lifts the tombstone. */
+  private endedSessions = new Map<string, number>();
+
+  private isEndedSession(sessionId: string): boolean {
+    const endedAt = this.endedSessions.get(sessionId);
+    if (endedAt === undefined) return false;
+    if (Date.now() - endedAt < ENDED_SESSION_TOMBSTONE_MS) return true;
+    this.endedSessions.delete(sessionId);
+    return false;
+  }
 
   /** Highest HookProvider.protocolVersion this handler understands. */
   private static readonly SUPPORTED_PROTOCOL_VERSION = 1;
@@ -169,6 +182,8 @@ export class HookEventHandler {
     //   1. Confirming known agents (set hookDelivered)
     //   2. /clear reassignment (source=clear + pendingClear agent)
     if (normEvent.kind === 'sessionStart') {
+      // A session that starts again (resume) is alive: lift its tombstone.
+      this.endedSessions.delete(event.session_id);
       const sid = event.session_id.slice(0, 8);
       const source = normEvent.source ?? 'unknown';
       const transcriptPath = normEvent.transcriptPath;
@@ -255,6 +270,15 @@ export class HookEventHandler {
     }
 
     // --- All other events: standard agent lookup ---
+    // A late event for a session that already ended must not bring it back.
+    if (this.isEndedSession(event.session_id)) {
+      if (debug)
+        console.log(
+          `[Pixel Agents] Hook: ${eventName} dropped for ended session ${event.session_id.slice(0, 8)}...`,
+        );
+      return;
+    }
+
     // If SessionEnd arrives for a pending external session, discard it (transient session)
     if (normEvent.kind === 'sessionEnd' && this.sessionRouter.hasPending(event.session_id)) {
       this.sessionRouter.discardPending(event.session_id);
@@ -393,6 +417,7 @@ export class HookEventHandler {
       setTimeout(() => {
         if (agent.pendingClear) {
           agent.pendingClear = false;
+          this.endedSessions.set(agent.sessionId, Date.now());
           this.lifecycleCallbacks.onSessionEnd?.(agentId, reason);
         }
       }, SESSION_END_GRACE_MS);
@@ -400,6 +425,7 @@ export class HookEventHandler {
       // Immediate cleanup for exit/logout. onSessionEnd → removeTeammates in the
       // ViewProvider cleans up all teammates of this lead at once.
       this.markAgentWaiting(agent, agentId);
+      this.endedSessions.set(agent.sessionId, Date.now());
       this.lifecycleCallbacks.onSessionEnd?.(agentId, reason ?? 'unknown');
     }
   }
@@ -437,6 +463,7 @@ export class HookEventHandler {
     agent.isWaiting = false;
     agent.turnActive = true;
     agent.permissionSent = false;
+    agent.permissionSuspected = false;
     agent.hadToolsInTurn = true;
 
     // Send tool start + active state to webview (instant, no 500ms JSONL delay).
@@ -779,7 +806,9 @@ export class HookEventHandler {
 
     agent.isWaiting = true;
     agent.turnActive = false;
+    agent.awaitingInput = awaitingInput;
     agent.permissionSent = false;
+    agent.permissionSuspected = false;
     agent.hadToolsInTurn = false;
     agent.currentHookToolId = undefined;
     this.agents.broadcast({

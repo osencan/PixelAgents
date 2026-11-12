@@ -1,4 +1,4 @@
-import { DISMISSED_COOLDOWN_MS } from './constants.js';
+import { DISMISSED_COOLDOWN_MS, ENDED_SESSION_WRITE_GRACE_MS } from './constants.js';
 import { toPathKey } from './pathKey.js';
 
 /**
@@ -23,6 +23,10 @@ export class DismissalTracker {
   /** Mtime at seeding time (extension startup). If the actual mtime changes later,
    *  the file was resumed (--resume) and should be released from tracking. */
   private seeded = new Map<string, number>();
+
+  /** Transcripts whose session ended (SessionEnd), by end time: not
+   *  re-adopted unless written well after the end (a genuine resume). */
+  private ended = new Map<string, number>();
 
   /** /clear files waiting for a second scan tick before adoption. Gives the per-agent
    *  /clear detection loop time to claim the file first. */
@@ -82,6 +86,24 @@ export class DismissalTracker {
     return this.seeded.has(toPathKey(path));
   }
 
+  // ── Ended sessions (tombstones) ─────────────────────────────────────
+
+  markEnded(path: string, endedAt = Date.now()): void {
+    this.ended.set(toPathKey(path), endedAt);
+  }
+
+  /** True while an ended session's file has no writes after its end (+grace). */
+  isEndedUnchanged(path: string, mtimeMs: number): boolean {
+    const key = toPathKey(path);
+    const endedAt = this.ended.get(key);
+    if (endedAt === undefined) return false;
+    if (mtimeMs > endedAt + ENDED_SESSION_WRITE_GRACE_MS) {
+      this.ended.delete(key);
+      return false;
+    }
+    return true;
+  }
+
   // ── Pending /clear files (two-tick delay) ───────────────────────────
 
   registerPendingClear(path: string, timestamp = Date.now()): void {
@@ -103,5 +125,6 @@ export class DismissalTracker {
     this.permanent.clear();
     this.seeded.clear();
     this.pending.clear();
+    this.ended.clear();
   }
 }

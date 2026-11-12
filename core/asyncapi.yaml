@@ -86,6 +86,8 @@ components:
         - $ref: '#/components/schemas/ExistingAgents'
         # Agent status / tool activity
         - $ref: '#/components/schemas/AgentStatus'
+        - $ref: '#/components/schemas/AgentLifecycle'
+        - $ref: '#/components/schemas/AgentDirectoryChanged'
         - $ref: '#/components/schemas/AgentToolStart'
         - $ref: '#/components/schemas/AgentToolDone'
         - $ref: '#/components/schemas/AgentToolsClear'
@@ -209,6 +211,12 @@ components:
           const: agentCreated
         id:
           type: integer
+        agentKey:
+          type: string
+          description: >-
+            Stable, opaque session key (provider + short session hash). Unlike
+            the numeric id it survives server restarts; viewers key per-browser
+            preferences (hidden agents) on it.
         directoryName:
           type: string
         isExternal:
@@ -277,6 +285,63 @@ components:
           description: Map of agent ID (string) to external flag.
           additionalProperties:
             type: boolean
+        agentKeys:
+          type: object
+          description: Map of agent ID (string) to its stable agentKey.
+          additionalProperties:
+            type: string
+
+    AgentDirectoryChanged:
+      description: An agent's project label changed (metadata only; identity is unchanged).
+      type: object
+      additionalProperties: false
+      required: [type, id, directoryName]
+      properties:
+        type:
+          const: agentDirectoryChanged
+        id:
+          type: integer
+        directoryName:
+          type: string
+
+    AgentLifecycle:
+      description: >-
+        What an agent is doing, as one explicit state, and whether the provider
+        reported it (observed) or it was inferred from silence/timers.
+      type: object
+      additionalProperties: false
+      required: [type, id, lifecycle, observed, since]
+      properties:
+        type:
+          const: agentLifecycle
+        id:
+          type: integer
+        lifecycle:
+          $ref: '#/components/schemas/AgentLifecycleState'
+        observed:
+          type: boolean
+          description: True when a provider event reported this state; false when inferred.
+        permissionSuspected:
+          type: boolean
+          description: >-
+            Inferred only: a tool has run long without a permission event. A
+            hint, never a confirmed permission request.
+        since:
+          type: integer
+          description: Epoch ms when this state began.
+
+    AgentLifecycleState:
+      type: string
+      enum:
+        - thinking
+        - reading
+        - editing
+        - running
+        - working
+        - waiting_permission
+        - waiting_input
+        - idle
+        - unknown
 
     AgentStatus:
       description: Active vs waiting state for an agent (drives character animation).

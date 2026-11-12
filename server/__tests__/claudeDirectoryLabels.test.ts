@@ -93,3 +93,49 @@ test('live updates rename only the matching Claude character and broadcast the c
   });
   watcher.dispose();
 });
+
+test('Codex labels follow later cwd changes and same-name projects are told apart', () => {
+  vi.useFakeTimers();
+  const root = temp();
+  const clientsSite = path.join(root, 'clients', 'site');
+  const personalSite = path.join(root, 'personal', 'site');
+  const other = path.join(root, 'Watermark');
+  for (const p of [clientsSite, personalSite, other])
+    fs.mkdirSync(path.join(p, '.git'), { recursive: true });
+  const file = path.join(root, 'rollout.jsonl');
+  fs.writeFileSync(file, JSON.stringify({ sessionId: 'one', cwd: clientsSite }) + '\n');
+  const store = new AgentStateStore();
+  store.set(
+    1,
+    createAgentState({
+      id: 1,
+      sessionId: 'one',
+      projectDir: root,
+      jsonlFile: file,
+      isExternal: true,
+    }),
+  );
+  const codex = createAgentState({
+    id: 2,
+    sessionId: 'codex:two',
+    projectDir: other,
+    jsonlFile: '',
+    isExternal: true,
+    providerId: 'codex',
+    directoryName: 'Codex · Watermark · subagent',
+  });
+  codex.projectCwd = other;
+  store.set(2, codex);
+  const watcher = startClaudeDirectoryLabels(store);
+  expect(store.get(1)?.directoryName).toBe('site');
+  expect(store.get(2)?.directoryName).toBe('Codex · Watermark · subagent');
+
+  // Codex moves into the other "site": both now need a distinguishing suffix.
+  codex.projectCwd = path.join(personalSite, 'src');
+  vi.advanceTimersByTime(2000);
+  expect(store.get(1)?.directoryName).toBe('site (clients)');
+  expect(store.get(2)?.directoryName).toBe('Codex · site (personal) · subagent');
+  // Identity never changes with the label.
+  expect(store.get(2)?.sessionId).toBe('codex:two');
+  watcher.dispose();
+});

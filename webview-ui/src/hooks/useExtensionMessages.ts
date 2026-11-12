@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Directory, HooksConsentRequest } from '../../../core/src/messages.js';
+import type { AgentLifecycleState } from '../../../core/src/messages.js';
 import { handleCastMessage } from '../characters/castMessages.js';
 import { castStore } from '../characters/castStore.js';
 import { startOfficeSync } from '../characters/officeSprites.js';
 import { cardOrderOf } from '../components/cardBar.js';
 import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
+import { clearAgentLifecycle, setAgentLifecycle } from '../office/agentLifecycles.js';
 import { clearAgentContextUsed, setAgentContextUsed } from '../office/contextGauge.js';
 import type { ExistingAgentMeta, PendingAgent } from '../office/engine/existingAgents.js';
 import {
@@ -16,7 +18,7 @@ import {
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setGhostHeadlessAgents as setRendererGhostHeadlessAgents } from '../office/engine/renderer.js';
 import { setFloorSprites } from '../office/floorTiles.js';
-import { clearAgentKey, setAgentKey } from '../office/hiddenAgents.js';
+import { clearAgentKey, isReusedId, setAgentKey } from '../office/hiddenAgents.js';
 import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js';
 import { migrateLayoutColors } from '../office/layout/layoutSerializer.js';
 import { setCarpetSprites } from '../office/sprites/carpetTiles.js';
@@ -287,6 +289,7 @@ export function useExtensionMessages(
       setAgents((prev) => prev.filter((a) => a !== id));
       setSelectedAgent((prev) => (prev === id ? null : prev));
       clearAgentKey(id);
+      clearAgentLifecycle(id);
       // Drop the drawer tab too. terminalSessionClosed normally does this, but
       // an agent can be removed without its PTY ever reporting an exit (e.g.
       // stale cleanup), and a tab for a gone agent would attach to nothing.
@@ -421,6 +424,7 @@ export function useExtensionMessages(
         const teammateName = msg.teammateName as string | undefined;
         const teammateParentId = msg.parentAgentId as number | undefined;
         const teamName = msg.teamName as string | undefined;
+        if (isReusedId(id, msg.agentKey as string | undefined)) closeAgent(os, id);
         setAgentKey(id, msg.agentKey as string | undefined);
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]));
         // Don't auto-select teammates (keep focus on lead)
@@ -488,6 +492,9 @@ export function useExtensionMessages(
         const agentKeys = (msg.agentKeys || {}) as Record<number, string>;
         const headlessAgents: Record<number, boolean> = {};
         for (const id of incoming) {
+          // A restarted server can reuse a numeric id for another session:
+          // that is a different agent, never a rename of the old character.
+          if (isReusedId(id, agentKeys[id])) closeAgent(os, id);
           setAgentKey(id, agentKeys[id]);
           noteDirectoryName(directoryNames[id]);
           if (isHeadlessAgent(externalAgents[id])) headlessAgents[id] = true;
@@ -632,6 +639,13 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentSelected') {
         const id = msg.id as number;
         setSelectedAgent(id);
+      } else if (msg.type === 'agentLifecycle') {
+        setAgentLifecycle(msg.id as number, {
+          lifecycle: msg.lifecycle as AgentLifecycleState,
+          observed: msg.observed === true,
+          permissionSuspected: msg.permissionSuspected === true,
+          since: msg.since as number,
+        });
       } else if (msg.type === 'agentStatus') {
         const id = msg.id as number;
         const status = msg.status as string;

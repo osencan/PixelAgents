@@ -889,3 +889,7 @@ export const AGENT_DETAIL_RECENT_TOOLS = 8;
 export const HIDDEN_AGENTS_STORAGE_KEY = 'pixel-agents.hiddenAgents';
 /** Opacity of a hidden agent's card in the stack. */
 export const HIDDEN_AGENT_CARD_OPACITY = 0.4;
+/** localStorage key: the providers/projects this viewer filtered out (per browser). */
+export const AGENT_FILTER_STORAGE_KEY = 'pixel-agents.agentFilter';
+/** Height class of the bottom toolbar's button row (shared by its trailing filter). */
+export const TOOLBAR_ROW_HEIGHT_CLASS = 'h-52';

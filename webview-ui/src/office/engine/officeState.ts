@@ -14,6 +14,7 @@ import {
   PET_HIT_HEIGHT,
   WAITING_BUBBLE_DURATION_SEC,
 } from '../../constants.js';
+import { isFilteredOut } from '../agentFilter.js';
 import { contextUsedShare } from '../contextGauge.js';
 import { isAgentHidden } from '../hiddenAgents.js';
 import { getAnimationFrames, getCatalogEntry, getOnStateType } from '../layout/furnitureCatalog.js';
@@ -1323,14 +1324,19 @@ export class OfficeState {
     return chars;
   }
 
-  /** Hidden by this viewer: the agent itself, or (subagents, teammates) its
-   *  parent. Hidden characters keep simulating and keep their seats; they are
-   *  only left out of drawing, labels and hit-testing. */
+  /** Not shown to this viewer: hidden (the agent or, for subagents and
+   *  teammates, its parent) or left out by the project/provider filter. Such
+   *  characters keep simulating and keep their seats; they are only left out
+   *  of drawing, labels and hit-testing. */
   isHidden(id: number): boolean {
     if (isAgentHidden(id)) return true;
     const ch = this.characters.get(id);
     const parentId = ch?.parentAgentId ?? ch?.leadAgentId;
-    return parentId !== null && parentId !== undefined && isAgentHidden(parentId);
+    const hasParent = parentId !== null && parentId !== undefined;
+    if (hasParent && isAgentHidden(parentId)) return true;
+    // The viewer's project/provider filter: subagents follow their parent's label.
+    const owner = hasParent ? (this.characters.get(parentId) ?? ch) : ch;
+    return owner !== undefined && isFilteredOut(owner.directoryName);
   }
 
   /** What the office draws: getCharacters() minus the hidden agents. */

@@ -25,6 +25,7 @@ import {
   NEEDS_APPROVAL_TEXT,
   WAITING_INPUT_ACTIVITY_TEXT,
 } from '../agentActivity.js';
+import { getAgentLifecycle, lifecycleText } from '../agentLifecycles.js';
 import { ContextBar } from '../ContextBar.js';
 import { contextLeft } from '../contextGauge.js';
 import type { OfficeState } from '../engine/officeState.js';
@@ -255,6 +256,11 @@ export function ToolOverlay({
             ch.bubbleType,
             ch.waitingAwaitingInput ?? false,
           );
+          // The server's explicit lifecycle refines the tool text: silence is
+          // "no recent activity", and a guessed permission wait is a hint only.
+          const life = getAgentLifecycle(id);
+          if (life?.lifecycle === 'unknown') activityText = lifecycleText('unknown');
+          else if (life?.permissionSuspected) activityText += ' · approval?';
         }
 
         // Determine dot color

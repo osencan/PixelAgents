@@ -34,6 +34,7 @@ export function clearAgentActivity(
   agent.isWaiting = false;
   agent.turnActive = true;
   agent.permissionSent = false;
+  agent.permissionSuspected = false;
   cancelPermissionTimer(agentId, permissionTimers);
   agents.broadcast({ type: 'agentToolsClear', id: agentId });
   // Re-send background agent tools so webview re-creates their sub-agents.
@@ -130,32 +131,19 @@ export function startPermissionTimer(
     }
 
     // Check sub-agent tools for non-exempt tools
-    const stuckSubagentParentToolIds: string[] = [];
-    for (const [parentToolId, subToolNames] of agent.activeSubagentToolNames) {
-      for (const [, toolName] of subToolNames) {
-        if (!permissionExemptTools.has(toolName)) {
-          stuckSubagentParentToolIds.push(parentToolId);
-          hasNonExempt = true;
-          break;
-        }
+    for (const subToolNames of agent.activeSubagentToolNames.values()) {
+      for (const toolName of subToolNames.values()) {
+        if (!permissionExemptTools.has(toolName)) hasNonExempt = true;
       }
     }
 
     if (hasNonExempt) {
-      agent.permissionSent = true;
-      console.log(`[Pixel Agents] Timer: Agent ${agentId} - possible permission wait detected`);
-      agents.broadcast({
-        type: 'agentToolPermission',
-        id: agentId,
-      });
-      // Also notify stuck sub-agents
-      for (const parentToolId of stuckSubagentParentToolIds) {
-        agents.broadcast({
-          type: 'subagentToolPermission',
-          id: agentId,
-          parentToolId,
-        });
-      }
+      // Only a guess: a long-running command looks exactly like this. It is
+      // reported as a suspicion (agentLifecycle), never as a permission request,
+      // so the office doesn't light up "Needs approval" for a slow build.
+      agent.permissionSuspected = true;
+      console.log(`[Pixel Agents] Timer: Agent ${agentId} - possible permission wait (inferred)`);
+      agents.broadcast({ type: 'agentPermissionSuspected', id: agentId });
     }
   }, PERMISSION_TIMER_DELAY_MS);
   permissionTimers.set(agentId, timer);

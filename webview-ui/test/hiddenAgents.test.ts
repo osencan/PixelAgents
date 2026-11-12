@@ -5,6 +5,7 @@ import {
   clearAgentKey,
   hiddenAgentIds,
   isAgentHidden,
+  isReusedId,
   setAgentHidden,
   setAgentKey,
 } from '../src/office/hiddenAgents.js';
@@ -38,5 +39,13 @@ describe('hidden agents', () => {
 
     setAgentHidden(7, false);
     expect(office.getVisibleCharacters().some((c) => c.id === 7)).toBe(true);
+  });
+
+  it('detects a numeric id reused for a different session', () => {
+    setAgentKey(9, 'claude:cccc');
+    expect(isReusedId(9, 'claude:cccc')).toBe(false);
+    expect(isReusedId(9, 'codex:dddd')).toBe(true);
+    expect(isReusedId(9, undefined)).toBe(false);
+    expect(isReusedId(10, 'claude:cccc')).toBe(false);
   });
 });

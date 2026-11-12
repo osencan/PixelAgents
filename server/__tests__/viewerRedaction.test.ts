@@ -51,3 +51,21 @@ describe('agentKey', () => {
     expect(agentKey({ sessionId: 'session-124', providerId: undefined })).not.toBe(a);
   });
 });
+
+describe('DismissalTracker ended sessions', () => {
+  it('blocks re-adoption until the transcript is written again after the grace window', async () => {
+    const { DismissalTracker } = await import('../src/dismissalTracker.js');
+    const { ENDED_SESSION_WRITE_GRACE_MS } = await import('../src/constants.js');
+    const tracker = new DismissalTracker();
+    const endedAt = 1_000_000;
+    tracker.markEnded('/t/s.jsonl', endedAt);
+    // Final records written just after exit are not a resume.
+    expect(tracker.isEndedUnchanged('/t/s.jsonl', endedAt + 5_000)).toBe(true);
+    // A write well after the end is.
+    expect(tracker.isEndedUnchanged('/t/s.jsonl', endedAt + ENDED_SESSION_WRITE_GRACE_MS + 1)).toBe(
+      false,
+    );
+    expect(tracker.isEndedUnchanged('/t/s.jsonl', endedAt)).toBe(false);
+    expect(tracker.isEndedUnchanged('/t/other.jsonl', endedAt)).toBe(false);
+  });
+});

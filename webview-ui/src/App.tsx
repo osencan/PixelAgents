@@ -4,6 +4,7 @@ import { toMajorMinor } from './changelogData.js';
 import { CharactersView } from './characters/ui/CharactersView.js';
 import { AgentCardBar } from './components/AgentCardBar.js';
 import { AgentDetailPanel } from './components/AgentDetailPanel.js';
+import { AgentFilter } from './components/AgentFilter.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChangelogModal } from './components/ChangelogModal.js';
 import { ConnectionIndicator } from './components/ConnectionIndicator.js';
@@ -20,7 +21,11 @@ import { Tooltip } from './components/Tooltip.js';
 import { Modal } from './components/ui/Modal.js';
 import { VersionIndicator } from './components/VersionIndicator.js';
 import { MobileZoomLevel, ZoomControls } from './components/ZoomControls.js';
-import { CONVERSATION_SIDEBAR_WIDTH_PX, OFFICE_CANVAS_TEST_ID } from './constants.js';
+import {
+  CONVERSATION_SIDEBAR_WIDTH_PX,
+  OFFICE_CANVAS_TEST_ID,
+  TOOLBAR_ROW_HEIGHT_CLASS,
+} from './constants.js';
 import type { ConversationSearchScope } from './conversations/ConversationList.js';
 import { ConversationSearch } from './conversations/ConversationSearch.js';
 import { ConversationSidebar } from './conversations/ConversationSidebar.js';
@@ -40,6 +45,7 @@ import { MobileShell } from './mobile/MobileShell.js';
 import { useMobileMenu } from './mobile/useMobileMenu.js';
 import { useMobileShell } from './mobile/useMobileShell.js';
 import { MusicPlayer } from './music/MusicPlayer.js';
+import { isFilteredOut, useAgentFilterVersion } from './office/agentFilter.js';
 import { OfficeCanvas } from './office/components/OfficeCanvas.js';
 import { ToolOverlay } from './office/components/ToolOverlay.js';
 import { EditorState } from './office/editor/editorState.js';
@@ -548,9 +554,29 @@ function App() {
       return false;
     })();
 
+  // Re-render when this viewer changes the project/provider filter.
+  useAgentFilterVersion();
+
   if (!layoutReady) {
     return <LoadingScene />;
   }
+
+  // The viewer's filter: filtered agents leave the card stack (hidden ones stay, faded).
+  const shownCardAgents = cardAgents.filter(
+    (id) => !isFilteredOut(officeState.characters.get(id)?.directoryName),
+  );
+  const filteredCount = cardAgents.length - shownCardAgents.length;
+
+  const agentFilter =
+    agents.length > 0 && !editor.isEditMode ? (
+      <AgentFilter
+        labels={cardAgents.map((id) => officeState.characters.get(id)?.directoryName)}
+        filteredCount={filteredCount}
+        mobile={isMobile}
+        inToolbar={!isMobile && !officeReadOnly}
+        buttonClassName={!isMobile && !officeReadOnly ? TOOLBAR_ROW_HEIGHT_CLASS : ''}
+      />
+    ) : null;
 
   const detailPanel =
     focusedAgentId !== null && !isDebugMode && !editor.isEditMode ? (
@@ -607,6 +633,10 @@ function App() {
               sidebar={hasSidebar ? { open: sidebar.open, onToggle: sidebar.toggle } : undefined}
             />
           )}
+
+          {/* Without the bottom toolbar (phone, read-only), the filter floats;
+              otherwise it sits in the toolbar beside Settings. */}
+          {(isMobile || officeReadOnly) && agentFilter}
 
           {/* The provider's plan usage, top-left (Settings → Usage Bars). */}
           {usage.status?.installed && (
@@ -765,6 +795,7 @@ function App() {
           // Where there is a conversation sidebar, Settings lives only at its
           // foot (shut, it is one click away), never also in the toolbar.
           showSettings={!hasSidebar}
+          trailing={agentFilter}
           isCharactersOpen={isCharactersOpen}
           onOpenCharacters={openCharacters}
           directories={directories}
@@ -837,7 +868,7 @@ function App() {
           office={officeRegion}
           shell={mobileShell}
           drawer={terminalDrawer}
-          agentIds={cardAgents}
+          agentIds={shownCardAgents}
           terminalAgentIds={terminalAgentIds}
           focusedAgentId={focusedAgentId}
           terminalAvailable={terminalAvailable}
@@ -874,7 +905,7 @@ function App() {
               character. */}
           {!(isDebugMode && !terminalAvailable) && (
             <AgentCardBar
-              agentIds={cardAgents}
+              agentIds={shownCardAgents}
               activeAgentId={terminalAvailable ? terminalDrawer.shownAgentId : null}
               focusedAgentId={focusedAgentId}
               getAppearance={terminalDrawer.getAppearance}
