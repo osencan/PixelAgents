@@ -920,3 +920,40 @@ export const TOAST_MAX_VISIBLE = 3;
 /** Preferred distance (tiles, any direction) between agents in a rest/waiting
  *  room: 2 leaves an empty tile between them. Packed closer only when full. */
 export const ROOM_MIN_SPACING_TILES = 2;
+/** How long a test/build result floats over the agent. */
+export const CHECK_RESULT_SHOW_MS = 4000;
+
+// ── Project accents & seat memory ──────────────────────────
+/** Distinct accent colors; a project's name picks one stably (always shown
+ *  next to the project's text, never as the only cue). */
+export const PROJECT_ACCENT_COLORS = [
+  '#e5534b',
+  '#f69d50',
+  '#e2c08d',
+  '#57ab5a',
+  '#39c5cf',
+  '#539bf5',
+  '#986ee2',
+  '#e275ad',
+  '#c69026',
+  '#768390',
+];
+/** localStorage key: the desk each project last used (per browser). */
+export const PROJECT_SEATS_STORAGE_KEY = 'pixel-agents.projectSeats';
+
+// ── Role badges ────────────────────────────────────────────
+/** Roles offered in the panel (custom text is allowed too). */
+export const AGENT_ROLE_OPTIONS = ['builder', 'reviewer', 'researcher', 'tester', 'planner'];
+/** Longest role badge text. */
+export const AGENT_ROLE_MAX_LENGTH = 20;
+/** localStorage key: roles this viewer assigned, by agent key (per browser). */
+export const AGENT_ROLES_STORAGE_KEY = 'pixel-agents.agentRoles';
+
+// ── Ambient tint (decorative) ──────────────────────────────
+/** Office tint at night (21:00-05:59 local), dusk (18-20) and dawn (06-07). */
+export const AMBIENT_NIGHT_TINT = 'rgba(20, 30, 90, 0.22)';
+export const AMBIENT_TWILIGHT_TINT = 'rgba(255, 140, 60, 0.08)';
+/** How often the tint follows the clock. */
+export const AMBIENT_REFRESH_MS = 60_000;
+/** localStorage key: whether this viewer shows the day/night tint. */
+export const AMBIENT_STORAGE_KEY = 'pixel-agents.ambientTint';

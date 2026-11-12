@@ -2,6 +2,7 @@ import * as path from 'path';
 
 import type { AgentEvent, HookProvider } from '../../core/src/provider.js';
 import type { AgentStateStore } from './agentStateStore.js';
+import { classifyCheckCommand } from './checkCommands.js';
 import { ENDED_SESSION_TOMBSTONE_MS, SESSION_END_GRACE_MS } from './constants.js';
 import { pathsMatch } from './pathKey.js';
 import type { SessionRouter } from './sessionRouter.js';
@@ -361,6 +362,16 @@ export class HookEventHandler {
         if (normEvent.failed) {
           this.agents.broadcast({ type: 'agentToolFailed', id: agentId, at: Date.now() });
         }
+        if (agent.pendingCheck) {
+          this.agents.broadcast({
+            type: 'agentCheckResult',
+            id: agentId,
+            check: agent.pendingCheck,
+            ok: !normEvent.failed,
+            at: Date.now(),
+          });
+          agent.pendingCheck = undefined;
+        }
         return this.handlePostToolUse(agent, agentId);
       case 'subagentStart':
         return this.provider.team ? this.handleSubagentStart(event, agent, agentId) : undefined;
@@ -455,6 +466,11 @@ export class HookEventHandler {
     agent.currentHookToolName = toolName;
     agent.currentHookIsTeammateSpawn =
       this.provider.team?.isTeammateSpawnCall(toolName, toolInput) ?? false;
+    // Remember only whether this is a test/build run, never the command.
+    agent.pendingCheck =
+      toolName === 'Bash' && typeof toolInput.command === 'string'
+        ? classifyCheckCommand(toolInput.command)
+        : undefined;
 
     // When a lead has inline teammates, hook tool events are ambiguous (could be
     // from the lead or any teammate -- they share session_id). Suppress hook-originated

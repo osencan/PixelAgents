@@ -4,13 +4,19 @@ import {
   AGENT_DETAIL_HISTORY_ROWS,
   AGENT_DETAIL_PANEL_WIDTH_PX,
   AGENT_DETAIL_RECENT_TOOLS,
+  AGENT_ROLE_MAX_LENGTH,
+  AGENT_ROLE_OPTIONS,
 } from '../constants.js';
 import type { SubagentCharacter } from '../hooks/useExtensionMessages.js';
 import { getActivityText, pendingApprovalTool, providerName } from '../office/agentActivity.js';
+import type { AgentHistoryEntry } from '../office/agentHistory.js';
 import { getAgentHistory } from '../office/agentHistory.js';
 import { getAgentLifecycle, lifecycleText } from '../office/agentLifecycles.js';
+import { getAgentRole, setAgentRole, useAgentRolesVersion } from '../office/agentRoles.js';
+import { checkText } from '../office/checkResults.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setAgentHidden, useIsAgentHidden } from '../office/hiddenAgents.js';
+import { projectAccent } from '../office/projectPrefs.js';
 import type { ToolActivity } from '../office/types.js';
 import { Button } from './ui/Button.js';
 import { PixelIcon } from './ui/PixelIcon.js';
@@ -35,8 +41,17 @@ function formatDuration(ms: number): string {
   return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
+/** Select value for a custom role (typed in a text field). */
+const CUSTOM_ROLE = '__custom__';
+
 function clock(at: number): string {
   return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function historyText(e: AgentHistoryEntry): string {
+  if (e.kind === 'tool_failed') return 'A tool failed';
+  if (e.kind === 'check') return checkText(e.check ?? 'test', e.ok === true);
+  return `${lifecycleText(e.lifecycle ?? 'unknown')}${e.observed ? '' : ' (guessed)'}`;
 }
 
 function nameOf(ch: { id: number; agentName?: string; directoryName?: string }): string {
@@ -78,6 +93,15 @@ export function AgentDetailPanel({
   // Hiding is this viewer's choice only: the agent keeps working and its card
   // stays in the stack, faded, until unhidden here.
   const hidden = useIsAgentHidden(agentId);
+
+  // The viewer's role badge for this agent (per browser).
+  useAgentRolesVersion();
+  const role = getAgentRole(agentId);
+  const [editingRole, setEditingRole] = useState(false);
+  const [customRole, setCustomRole] = useState('');
+  useEffect(() => setEditingRole(false), [agentId]);
+  const roleChoice =
+    editingRole || (role && !AGENT_ROLE_OPTIONS.includes(role)) ? CUSTOM_ROLE : (role ?? '');
 
   // When the current activity started (reset whenever its text changes).
   const since = useRef<{ id: number; text: string; at: number } | null>(null);
@@ -148,6 +172,13 @@ export function AgentDetailPanel({
       }}
     >
       <div className="flex items-start gap-8">
+        {ch.directoryName && (
+          <span
+            aria-hidden="true"
+            className="w-4 self-stretch shrink-0"
+            style={{ background: projectAccent(ch.directoryName) }}
+          />
+        )}
         <div className="flex flex-col min-w-0 flex-1">
           <h2
             id={headingId}
@@ -161,6 +192,7 @@ export function AgentDetailPanel({
             {providerName(ch.directoryName)}
             {ch.isSubagent ? ' · subagent' : ''}
             {ch.isTeamLead ? ' · lead' : ''}
+            {role ? ` · ${role}` : ''}
           </span>
         </div>
         <Button
@@ -216,6 +248,53 @@ export function AgentDetailPanel({
         )}
         <Row label="For">{formatDuration(now - (life?.since ?? since.current.at))}</Row>
         {ch.directoryName && <Row label="Project">{ch.directoryName}</Row>}
+        {!ch.isSubagent && (
+          <Row label="Role">
+            <span className="flex flex-wrap items-center gap-4">
+              <select
+                className="text-xs py-1 px-2 bg-bg border-2 border-border rounded-none text-text"
+                value={roleChoice}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === CUSTOM_ROLE) {
+                    setCustomRole(role && !AGENT_ROLE_OPTIONS.includes(role) ? role : '');
+                    setEditingRole(true);
+                  } else {
+                    setEditingRole(false);
+                    setAgentRole(agentId, v);
+                  }
+                }}
+                aria-label="Role badge (this browser)"
+              >
+                <option value="">none</option>
+                {AGENT_ROLE_OPTIONS.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+                <option value={CUSTOM_ROLE}>custom…</option>
+              </select>
+              {editingRole && (
+                <input
+                  type="text"
+                  value={customRole}
+                  maxLength={AGENT_ROLE_MAX_LENGTH}
+                  autoFocus
+                  onChange={(e) => setCustomRole(e.target.value)}
+                  onBlur={() => {
+                    setAgentRole(agentId, customRole);
+                    setEditingRole(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.currentTarget.blur();
+                  }}
+                  className="text-xs py-1 px-2 bg-bg border-2 border-border rounded-none text-text w-100"
+                  aria-label="Custom role"
+                />
+              )}
+            </span>
+          </Row>
+        )}
         {contextPct !== null && <Row label="Context">{contextPct}% used</Row>}
       </div>
 
@@ -306,9 +385,7 @@ export function AgentDetailPanel({
               <li key={`${e.at}-${i}`} className="flex gap-6 leading-tight">
                 <span className="shrink-0 text-text-muted">{clock(e.at)}</span>
                 <span className="min-w-0 break-words">
-                  {e.kind === 'tool_failed'
-                    ? 'A tool failed'
-                    : `${lifecycleText(e.lifecycle!)}${e.observed ? '' : ' (guessed)'}`}
+                  {historyText(e)}
                   {e.project && e.project !== ch.directoryName ? (
                     <span className="text-text-muted"> · {e.project}</span>
                   ) : null}

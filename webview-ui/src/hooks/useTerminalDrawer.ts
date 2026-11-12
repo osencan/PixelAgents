@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentActivity, AgentAppearance, TabStatus } from '../components/AgentCard.js';
 import { TERMINAL_DRAWER_DEFAULT_WIDTH_PX } from '../constants.js';
 import type { OfficeState } from '../office/engine/officeState.js';
+import { projectAccent } from '../office/projectPrefs.js';
 import type { ToolActivity } from '../office/types.js';
 import type { TerminalConnectionStatus } from '../terminal/terminalClient.js';
 import { clampDrawerWidth } from './drawerWidth.js';
@@ -175,7 +176,9 @@ export function useTerminalDrawer({
   const getAppearance = useCallback(
     (id: number): AgentAppearance => {
       const ch = getOfficeState().characters.get(id);
-      return ch ? { palette: ch.palette, repeat: ch.repeat } : DEFAULT_APPEARANCE;
+      if (!ch) return DEFAULT_APPEARANCE;
+      const accent = ch.directoryName ? projectAccent(ch.directoryName) : undefined;
+      return { palette: ch.palette, repeat: ch.repeat, accent };
     },
     [getOfficeState],
   );

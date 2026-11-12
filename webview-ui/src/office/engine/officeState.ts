@@ -30,6 +30,7 @@ import {
 } from '../layout/layoutSerializer.js';
 import { findPath, getWalkableTiles, isWalkable } from '../layout/tileMap.js';
 import { pairWorkstations } from '../layout/workstations.js';
+import { rememberedSeat, rememberSeat } from '../projectPrefs.js';
 import { areaLabelsFor, resolveRoomPolicy } from '../roomPolicy.js';
 import { getPetCount, getPetName } from '../sprites/petSpriteData.js';
 import { getLoadedCharacterCount } from '../sprites/spriteData.js';
@@ -385,6 +386,10 @@ export class OfficeState {
     }
     if (freeSeats.length === 0) return null;
 
+    // Stage 0 — the desk this project last used, when it is free.
+    const remembered = rememberedSeat(directoryName);
+    if (remembered && freeSeats.includes(remembered)) return remembered;
+
     const areaLabels = directoryName ? this.areaMappings[directoryName] : undefined;
 
     // Stage 1 — in-area seats for the Directory's mapped Area labels.
@@ -511,6 +516,7 @@ export class OfficeState {
       const seat = this.seats.get(seatId)!;
       seat.assigned = true;
       ch = createCharacter(id, palette, seatId, seat, repeat);
+      if (!anchorAt) rememberSeat(directoryName, seatId);
     } else {
       // No seats — teammates spawn beside their anchor, others at a random walkable tile
       let spawn = anchorAt ? this.closestFreeWalkableTile(anchorAt.col, anchorAt.row) : null;
@@ -694,6 +700,7 @@ export class OfficeState {
     if (!seat || seat.assigned) return;
     seat.assigned = true;
     ch.seatId = seatId;
+    if (!ch.isSubagent && ch.leadAgentId === undefined) rememberSeat(ch.directoryName, seatId);
     // Pathfind to new seat (unblock own seat tile for this query)
     const path = this.withOwnSeatUnblocked(ch, () =>
       findPath(ch.tileCol, ch.tileRow, seat.seatCol, seat.seatRow, this.tileMap, this.blockedTiles),

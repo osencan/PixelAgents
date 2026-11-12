@@ -32,6 +32,8 @@ export interface AgentState {
   /** Guessed (no permission event): a non-exempt tool ran past the heuristic
    *  timer without hooks. Shown as a hint, never as a confirmed request. */
   permissionSuspected?: boolean;
+  /** The running Bash command is a test or build (category only, from PreToolUse). */
+  pendingCheck?: 'test' | 'build';
   hadToolsInTurn: boolean;
   /** Directory name — the agent's origin label (only set for multi-root workspaces) */
   directoryName?: string;

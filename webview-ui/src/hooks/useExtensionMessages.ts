@@ -14,6 +14,7 @@ import {
   getAgentLifecycle,
   setAgentLifecycle,
 } from '../office/agentLifecycles.js';
+import { clearCheckResult, showCheckResult } from '../office/checkResults.js';
 import { clearAgentContextUsed, setAgentContextUsed } from '../office/contextGauge.js';
 import type { ExistingAgentMeta, PendingAgent } from '../office/engine/existingAgents.js';
 import {
@@ -303,6 +304,7 @@ export function useExtensionMessages(
       clearAgentKey(id);
       clearAgentLifecycle(id);
       clearAgentHistory(id);
+      clearCheckResult(id);
       for (const kind of ['approval', 'finished', 'failed'] as const) dismissAgentToasts(id, kind);
       // Drop the drawer tab too. terminalSessionClosed normally does this, but
       // an agent can be removed without its PTY ever reporting an exit (e.g.
@@ -687,6 +689,18 @@ export function useExtensionMessages(
             });
           }
         }
+      } else if (msg.type === 'agentCheckResult') {
+        const id = msg.id as number;
+        const check = msg.check === 'build' ? 'build' : 'test';
+        const ok = msg.ok === true;
+        showCheckResult(id, check, ok);
+        appendAgentHistory(id, {
+          kind: 'check',
+          check,
+          ok,
+          at: msg.at as number,
+          project: os.characters.get(id)?.directoryName,
+        });
       } else if (msg.type === 'agentHistory') {
         setAgentHistory(msg.id as number, msg.entries as AgentHistoryEntry[]);
       } else if (msg.type === 'agentToolFailed') {

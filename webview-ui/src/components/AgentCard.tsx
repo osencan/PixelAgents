@@ -16,6 +16,8 @@ import { PixelIcon } from './ui/PixelIcon.js';
 export interface AgentAppearance {
   palette: number;
   repeat: number;
+  /** The agent's project accent (projectPrefs), a stripe along the card top. */
+  accent?: string;
 }
 
 /** Agent activity reflected by the tab's status dot. */
@@ -76,6 +78,13 @@ export function AgentCard({
       style={hidden ? { opacity: HIDDEN_AGENT_CARD_OPACITY } : undefined}
       data-hidden={hidden || undefined}
     >
+      {appearance.accent && (
+        <span
+          aria-hidden="true"
+          className="absolute left-0 right-0 top-0 h-2 pointer-events-none"
+          style={{ background: appearance.accent }}
+        />
+      )}
       <CharacterMugShot
         palette={appearance.palette}
         repeat={appearance.repeat}

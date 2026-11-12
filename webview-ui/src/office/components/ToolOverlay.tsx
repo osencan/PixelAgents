@@ -29,10 +29,13 @@ import {
   WAITING_INPUT_ACTIVITY_TEXT,
 } from '../agentActivity.js';
 import { getAgentLifecycle, lifecycleText } from '../agentLifecycles.js';
+import { getAgentRole } from '../agentRoles.js';
+import { activeCheckResult, checkText } from '../checkResults.js';
 import { ContextBar } from '../ContextBar.js';
 import { contextLeft } from '../contextGauge.js';
 import type { OfficeState } from '../engine/officeState.js';
 import { overlayProjection } from '../projection.js';
+import { projectAccent } from '../projectPrefs.js';
 import { getCachedSprite } from '../sprites/spriteCache.js';
 import { BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE } from '../sprites/spriteData.js';
 import type { ToolActivity } from '../types.js';
@@ -205,6 +208,29 @@ export function ToolOverlay({
               </div>
             </div>
           );
+        } else if (!needsApproval && activeCheckResult(id)) {
+          // A test/build just finished: a brief result chip over the head.
+          const result = activeCheckResult(id)!;
+          const resultSittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0;
+          bubbleTop =
+            project.toScreenY(ch.y + resultSittingOff - BUBBLE_VERTICAL_OFFSET_PX) -
+            APPROVAL_BEACON_SIZE_PX;
+          bubbleNode = (
+            <div
+              className={`absolute -translate-x-1/2 pointer-events-none pixel-panel px-6 text-sm whitespace-nowrap check-result ${
+                result.ok ? 'check-result-ok' : 'check-result-fail'
+              }`}
+              style={{
+                left: project.toScreenX(ch.x),
+                top: bubbleTop,
+                zIndex: OVERLAY_BUBBLE_Z_INDEX,
+              }}
+              data-testid="check-result"
+            >
+              {result.ok ? '✓ ' : '✗ '}
+              {checkText(result.check, result.ok)}
+            </div>
+          );
         } else if (!needsApproval && officeState.isAsleep(id)) {
           // Settled in the rest room after the sleep delay of reported idle.
           const sleepSittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0;
@@ -338,7 +364,11 @@ export function ToolOverlay({
         }
 
         // Team info
-        const teamRoleLabel = ch.isTeamLead ? 'LEAD' : ch.agentName || null;
+        // Team role (LEAD / teammate name) plus the viewer's role badge.
+        const viewerRole = isSub ? undefined : getAgentRole(id);
+        const teamRole = ch.isTeamLead ? 'LEAD' : ch.agentName || null;
+        const teamRoleLabel =
+          teamRole && viewerRole ? `${teamRole} · ${viewerRole}` : teamRole || viewerRole || null;
 
         // Context gauge. Every agent gets one — lead, teammate, adopted,
         // headless — as soon as the server reports its context (a cleared
@@ -369,6 +399,13 @@ export function ToolOverlay({
               <div
                 className={`flex items-center border-border px-8 pt-2 pb-4 gap-5 pixel-panel whitespace-nowrap max-w-2xs ${needsApproval ? 'approval-glow' : ''}`}
               >
+                {ch.directoryName && !isSub && (
+                  <span
+                    aria-hidden="true"
+                    className="w-4 self-stretch shrink-0"
+                    style={{ background: projectAccent(ch.directoryName) }}
+                  />
+                )}
                 {dotColor && (
                   <span
                     className={`w-6 h-6 rounded-full shrink-0 ${isActive && !hasPermission && !hasWaiting ? 'pixel-pulse' : ''}`}

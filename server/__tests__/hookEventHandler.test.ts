@@ -495,6 +495,33 @@ describe('HookEventHandler', () => {
     expect(failed).toEqual({ type: 'agentToolFailed', id: 1, at: expect.any(Number) });
   });
 
+  it('reports test/build outcomes by category, never the command', () => {
+    agents.set(1, createTestAgent({ id: 1, sessionId: 'sess-1' }));
+    handler.registerAgent('sess-1', 1);
+    const run = (command: string, end: { hook_event_name: string } & Record<string, unknown>) => {
+      handler.handleEvent('claude', {
+        hook_event_name: 'PreToolUse',
+        session_id: 'sess-1',
+        tool_name: 'Bash',
+        tool_input: { command },
+      });
+      handler.handleEvent('claude', { session_id: 'sess-1', tool_name: 'Bash', ...end });
+    };
+    run('npm test -- --secret', { hook_event_name: 'PostToolUse', tool_response: {} });
+    run('npm run build', { hook_event_name: 'PostToolUseFailure' });
+    run('npm run build', { hook_event_name: 'PostToolUse', tool_response: { exit_code: 2 } });
+    run('ls', { hook_event_name: 'PostToolUse', tool_response: {} });
+    const results = mockWebview.messages.filter((m) => m.type === 'agentCheckResult');
+    expect(results.map((r) => [r.check, r.ok])).toEqual([
+      ['test', true],
+      ['build', false],
+      ['build', false],
+    ]);
+    expect(
+      JSON.stringify(mockWebview.messages.filter((m) => m.type === 'agentCheckResult')),
+    ).not.toContain('secret');
+  });
+
   it('an ended session is not resurrected by late events, but a resume lifts the tombstone', () => {
     const agent = createTestAgent({ id: 1, sessionId: 'sess-1' });
     agents.set(1, agent);

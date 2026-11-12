@@ -16,6 +16,7 @@ export type ServerMessage =
   | AgentStatus
   | AgentLifecycle
   | AgentToolFailed
+  | AgentCheckResult
   | AgentHistory
   | AgentDirectoryChanged
   | AgentToolStart
@@ -173,6 +174,16 @@ export interface AgentToolFailed {
   at: number;
 }
 
+export interface AgentCheckResult {
+  type: 'agentCheckResult';
+  id: number;
+  check: AnonymousSchema_45;
+  ok: boolean;
+  at: number;
+}
+
+export type AnonymousSchema_45 = 'test' | 'build';
+
 export interface AgentHistory {
   type: 'agentHistory';
   id: number;
@@ -180,14 +191,18 @@ export interface AgentHistory {
 }
 
 export interface AgentHistoryEntry {
-  kind: AnonymousSchema_46;
+  kind: AnonymousSchema_51;
+  check?: AnonymousSchema_52;
+  ok?: boolean;
   lifecycle?: AgentLifecycleState;
   observed?: boolean;
   at: number;
   project?: string;
 }
 
-export type AnonymousSchema_46 = 'state' | 'tool_failed';
+export type AnonymousSchema_51 = 'state' | 'tool_failed' | 'check';
+
+export type AnonymousSchema_52 = 'test' | 'build';
 
 export interface AgentDirectoryChanged {
   type: 'agentDirectoryChanged';

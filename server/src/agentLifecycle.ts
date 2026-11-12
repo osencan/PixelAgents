@@ -33,7 +33,8 @@ export type AgentHistoryEntry =
       at: number;
       project?: string;
     }
-  | { kind: 'tool_failed'; at: number; project?: string };
+  | { kind: 'tool_failed'; at: number; project?: string }
+  | { kind: 'check'; check: 'test' | 'build'; ok: boolean; at: number; project?: string };
 
 const READING_TOOLS = new Set([
   'Read',
@@ -198,6 +199,15 @@ export function startAgentLifecycle(store: AgentStateStore): AgentLifecycleServi
     // Only agents in the store have a lifecycle (and a history to clean up).
     if (!store.has(message.id)) return;
     lastEventAt.set(message.id, Date.now());
+    if (message.type === 'agentCheckResult') {
+      record(message.id, {
+        kind: 'check',
+        check: message.check === 'build' ? 'build' : 'test',
+        ok: message.ok === true,
+        at: typeof message.at === 'number' ? message.at : Date.now(),
+        project: store.get(message.id)?.directoryName,
+      });
+    }
     if (message.type === 'agentToolFailed') {
       record(message.id, {
         kind: 'tool_failed',

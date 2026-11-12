@@ -88,6 +88,7 @@ components:
         - $ref: '#/components/schemas/AgentStatus'
         - $ref: '#/components/schemas/AgentLifecycle'
         - $ref: '#/components/schemas/AgentToolFailed'
+        - $ref: '#/components/schemas/AgentCheckResult'
         - $ref: '#/components/schemas/AgentHistory'
         - $ref: '#/components/schemas/AgentDirectoryChanged'
         - $ref: '#/components/schemas/AgentToolStart'
@@ -350,6 +351,26 @@ components:
         at:
           type: integer
 
+    AgentCheckResult:
+      description: >-
+        A test or build command finished (category and outcome only; the
+        command is never included).
+      type: object
+      additionalProperties: false
+      required: [type, id, check, ok, at]
+      properties:
+        type:
+          const: agentCheckResult
+        id:
+          type: integer
+        check:
+          type: string
+          enum: [test, build]
+        ok:
+          type: boolean
+        at:
+          type: integer
+
     AgentHistory:
       description: >-
         An agent's recent history (bounded, in memory, metadata only), sent on
@@ -374,7 +395,12 @@ components:
       properties:
         kind:
           type: string
-          enum: [state, tool_failed]
+          enum: [state, tool_failed, check]
+        check:
+          type: string
+          enum: [test, build]
+        ok:
+          type: boolean
         lifecycle:
           $ref: '#/components/schemas/AgentLifecycleState'
         observed:

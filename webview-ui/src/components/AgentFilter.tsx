@@ -11,6 +11,7 @@ import {
   toggleProvider,
   useAgentFilterVersion,
 } from '../office/agentFilter.js';
+import { ambientEnabled, setAmbientEnabled, useAmbientVersion } from '../office/ambient.js';
 import {
   notificationsEnabled,
   setNotificationsEnabled,
@@ -41,6 +42,7 @@ export function AgentFilter({
 }: AgentFilterProps) {
   useAgentFilterVersion();
   useNotificationsVersion();
+  useAmbientVersion();
   const [open, setOpen] = useState(false);
   const providers = [...new Set(labels.map((l) => providerName(l)))].sort();
   const projects = [...new Set(labels.map((l) => projectOfLabel(l)))].sort((a, b) =>
@@ -104,6 +106,12 @@ export function AgentFilter({
             checked={notificationsEnabled()}
             onChange={() => setNotificationsEnabled(!notificationsEnabled())}
             title="Approval requests, finished turns and failed tools"
+          />
+          <Checkbox
+            label="Day/night tint"
+            checked={ambientEnabled()}
+            onChange={() => setAmbientEnabled(!ambientEnabled())}
+            title="Decoration only: follows your clock, not agent activity"
           />
         </div>
       )}

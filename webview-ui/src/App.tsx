@@ -6,6 +6,7 @@ import { AgentCardBar } from './components/AgentCardBar.js';
 import { AgentDetailPanel } from './components/AgentDetailPanel.js';
 import { AgentFilter } from './components/AgentFilter.js';
 import { AgentToasts } from './components/AgentToasts.js';
+import { AmbientTint } from './components/AmbientTint.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChangelogModal } from './components/ChangelogModal.js';
 import { ConnectionIndicator } from './components/ConnectionIndicator.js';
@@ -650,6 +651,9 @@ function App() {
               mobile={isMobile}
             />
           )}
+
+          {/* Day/night tint (decorative, per-browser switch in the Filter panel) */}
+          <AmbientTint />
 
           {/* Vignette overlay */}
           <div

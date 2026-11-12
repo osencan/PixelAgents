@@ -309,6 +309,17 @@
     animation: approval-beacon 1s steps(2, jump-none) infinite;
   }
 
+  /* A test/build result floating briefly over an agent (text says pass/fail too). */
+  .check-result {
+    animation: check-result 4s ease-out forwards;
+  }
+  .check-result-ok {
+    outline: 2px solid var(--color-status-success);
+  }
+  .check-result-fail {
+    outline: 2px solid var(--color-status-error);
+  }
+
   /* A sleeping agent's floating Zz (rest room, after the sleep delay). */
   .sleep-zz {
     color: var(--color-text-muted);
@@ -414,6 +425,22 @@
     .touch-no-scrollbar::-webkit-scrollbar {
       display: none;
     }
+  }
+}
+
+@keyframes check-result {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  10%,
+  80% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
   }
 }
 
