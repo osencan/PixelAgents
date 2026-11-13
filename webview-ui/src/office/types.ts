@@ -277,6 +277,9 @@ export interface Character extends Blinker {
   teamUsesTmux?: boolean;
   /** A fork of its lead's session (/subtask): drawn with a compact label. */
   isSubtask?: boolean;
+  /** Seconds since a finished subtask started walking to the rest room to
+   *  leave (undefined while it isn't leaving). */
+  retiringFor?: number;
 
   // -- Context gauge --
   /** Tokens in the agent's context as of its newest turn; 0 until reported.

@@ -17,7 +17,6 @@ import {
   setNotificationsEnabled,
   useNotificationsVersion,
 } from '../office/notifications.js';
-import { ControlsSection } from './ControlsSection.js';
 import { Button } from './ui/Button.js';
 import { Checkbox } from './ui/Checkbox.js';
 
@@ -31,8 +30,6 @@ interface AgentFilterProps {
   inToolbar?: boolean;
   /** Extra classes for the button (the toolbar's row height). */
   buttonClassName?: string;
-  /** A tokened page: show the agent controls section. */
-  tokened?: boolean;
 }
 
 /** Per-browser provider/project filter: changes what this viewer sees only. */
@@ -42,7 +39,6 @@ export function AgentFilter({
   mobile,
   inToolbar = false,
   buttonClassName = '',
-  tokened = false,
 }: AgentFilterProps) {
   useAgentFilterVersion();
   useNotificationsVersion();
@@ -117,7 +113,6 @@ export function AgentFilter({
             onChange={() => setAmbientEnabled(!ambientEnabled())}
             title="Decoration only: follows your clock, not agent activity"
           />
-          {tokened && <ControlsSection />}
         </div>
       )}
     </div>

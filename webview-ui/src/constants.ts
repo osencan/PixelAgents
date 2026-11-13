@@ -905,6 +905,8 @@ export const REST_AREA_LABEL_PATTERN = /^rest(?: room)?$/i;
 export const LEGACY_REST_AREA_LABEL = 'Blue Room';
 /** Seconds before a character that found no free, reachable room tile tries again. */
 export const ROOM_RESERVATION_RETRY_SEC = 2;
+/** Longest a finished subtask walks toward the rest room before it vanishes anyway. */
+export const RETIRE_MAX_SEC = 20;
 
 // ── Activity history & notifications ───────────────────────
 /** Most recent history entries kept per agent in the browser (matches the server). */

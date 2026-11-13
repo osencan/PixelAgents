@@ -6,6 +6,7 @@ import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js';
 import { isBrowserRuntime } from '../runtime.js';
 import { transport } from '../transport/index.js';
 import { useUsageBridge } from '../usage/useUsageBridge.js';
+import { ControlsSection } from './ControlsSection.js';
 import { Button } from './ui/Button.js';
 import { Checkbox } from './ui/Checkbox.js';
 import { MenuItem } from './ui/MenuItem.js';
@@ -24,6 +25,8 @@ interface SettingsModalProps {
   externalAssetDirectories: string[];
   watchAllSessions: boolean;
   onToggleWatchAllSessions: () => void;
+  /** A tokened page: show Agent controls (PIN set / unlock). */
+  tokened?: boolean;
   showSubtaskAgents: boolean;
   onToggleShowSubtaskAgents: () => void;
   /** ACTUAL install state (the hooksStatus message), not the hooksEnabled
@@ -62,6 +65,7 @@ export function SettingsModal({
   externalAssetDirectories,
   watchAllSessions,
   onToggleWatchAllSessions,
+  tokened = false,
   showSubtaskAgents,
   onToggleShowSubtaskAgents,
   hooksInstalled,
@@ -263,6 +267,11 @@ export function SettingsModal({
         )}
         {/* This fork never launches agents with permission checks skipped (the
           server refuses it), so the upstream toggle is replaced by a note. */}
+        {tokened && (
+          <div className="px-10 py-6 border-y-2 border-border">
+            <ControlsSection />
+          </div>
+        )}
         <span className="text-sm text-text-muted px-4 leading-tight">
           Agents launched here always ask for permission (skip-permissions is disabled in this
           build).

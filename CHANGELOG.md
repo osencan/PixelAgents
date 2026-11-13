@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.0.3
+
+- **Agent controls moved to Settings:** setting the control PIN (on the server's machine) and unlocking controls (on other devices) are now in **Settings → Agent controls**, where people look for them, instead of the Filter panel.
+- **Subtasks leave through the rest room:** a finished subtask character walks to the rest room and vanishes there, instead of vanishing on the spot. With no reachable rest room, or after 20 seconds, it vanishes where it is.
+- The **Settings** button in the sidebar and phone menu is now the same size as Layout and Filter.
+
 ## v2.0.2
 
 - **Subtasks as agents (experimental, off by default):** turn on **Settings → Show Subtasks as Agents (experimental)** and each running Claude Code `/subtask` gets its own character beside its session's agent. Its label is compact (_Subagent_ / activity word / project), and it leaves when the subtask finishes, its transcript disappears, or it stays silent for 30 minutes. Known limit: a subtask shares its session's hooks, so its approval requests light up the main agent.

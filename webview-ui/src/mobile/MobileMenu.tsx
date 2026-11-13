@@ -145,7 +145,6 @@ export function MobileMenu({
         )}
         <div className="p-8 border-t-2 border-border">
           <Button
-            size="md"
             icon="settings"
             className="w-full"
             onClick={() => {
