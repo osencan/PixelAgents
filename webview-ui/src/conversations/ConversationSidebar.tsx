@@ -1,3 +1,4 @@
+import type { DirectoryConversations } from '../../../core/src/messages.js';
 import type { TabStatus } from '../components/AgentCard.js';
 import { Button } from '../components/ui/Button.js';
 import { CONVERSATION_SIDEBAR_WIDTH_PX, SIDE_PANEL_CONTENT_SHIFT_PX } from '../constants.js';
@@ -26,6 +27,8 @@ interface ConversationSidebarProps {
   onToggleSettings: () => void;
   /** Open the conversation search. */
   onSearch?: (scope: ConversationSearchScope) => void;
+  /** Start a new agent in a Directory. */
+  onLaunch?: (directory: DirectoryConversations) => void;
 }
 
 export function ConversationSidebar({
@@ -36,6 +39,7 @@ export function ConversationSidebar({
   isSettingsOpen,
   onToggleSettings,
   onSearch,
+  onLaunch,
 }: ConversationSidebarProps) {
   const { rendered, shown, panelTransition, contentTransition, onPanelTransitionEnd } =
     useSlidePanel(open, { initiallyOpen: open });
@@ -68,6 +72,7 @@ export function ConversationSidebar({
           onOpenAgent={onOpenAgent}
           statusFor={statusFor}
           onSearch={onSearch}
+          onLaunch={onLaunch}
         />
         <div className="p-8 border-t-2 border-border">
           <Button

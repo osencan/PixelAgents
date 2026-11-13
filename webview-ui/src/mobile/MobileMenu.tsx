@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import { useEffect, useImperativeHandle, useRef } from 'react';
 
+import type { DirectoryConversations } from '../../../core/src/messages.js';
 import type { TabStatus } from '../components/AgentCard.js';
 import { Button } from '../components/ui/Button.js';
 import { PixelIcon } from '../components/ui/PixelIcon.js';
@@ -30,6 +31,8 @@ interface MobileMenuProps {
   statusFor: (agentId: number) => TabStatus | null;
   /** Open the conversation search (over the menu). */
   onSearch?: (scope: ConversationSearchScope) => void;
+  /** Start a new agent in a Directory. */
+  onLaunch?: (directory: DirectoryConversations) => void;
 }
 
 /**
@@ -55,6 +58,7 @@ export function MobileMenu({
   onOpenAgent,
   statusFor,
   onSearch,
+  onLaunch,
 }: MobileMenuProps) {
   useEffect(() => {
     if (!open) return;
@@ -128,6 +132,13 @@ export function MobileMenu({
             }}
             statusFor={statusFor}
             onSearch={onSearch}
+            onLaunch={
+              onLaunch &&
+              ((directory) => {
+                onLaunch(directory);
+                onClose();
+              })
+            }
           />
         ) : (
           <div className="flex-1" />

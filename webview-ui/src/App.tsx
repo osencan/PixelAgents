@@ -203,6 +203,15 @@ function App() {
   const { launch: launchIntoDirectory, resume: resumeAndFocus } = useLaunchActions(
     terminalDrawer.expectLaunch,
   );
+  // A conversation list's "New agent": the Directory as the drawer knows it
+  // (its default characters), else just its path; the server checks it is listed.
+  const launchFromConversations = useCallback(
+    (directory: { name: string; path: string }) =>
+      launchIntoDirectory(
+        directories.find((d) => d.path === directory.path) ?? { ...directory, source: 'user' },
+      ),
+    [directories, launchIntoDirectory],
+  );
   const mobileShell = useMobileShell({
     getOfficeState,
     terminalAgentIds,
@@ -910,6 +919,7 @@ function App() {
               isSettingsOpen={isSettingsOpen}
               onToggleSettings={() => setIsSettingsOpen((v) => !v)}
               onSearch={setConversationSearch}
+              onLaunch={launchFromConversations}
             />
           )}
 
@@ -1025,6 +1035,7 @@ function App() {
           onOpenAgent={mobileShell.openAgent}
           statusFor={terminalDrawer.statusFor}
           onSearch={setConversationSearch}
+          onLaunch={launchFromConversations}
         />
       )}
 

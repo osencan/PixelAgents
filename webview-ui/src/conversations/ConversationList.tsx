@@ -33,6 +33,8 @@ interface ConversationListProps {
   roomy?: boolean;
   /** Open the search over every conversation (or one Directory's). */
   onSearch?: (scope: ConversationSearchScope) => void;
+  /** Start a new agent in a Directory (its open section's first row). */
+  onLaunch?: (directory: DirectoryConversations) => void;
 }
 
 /** Where a search looks: every Directory, or the one named. */
@@ -58,6 +60,7 @@ export function ConversationList({
   statusFor,
   roomy = false,
   onSearch,
+  onLaunch,
 }: ConversationListProps) {
   /** What pressing a row does: a running one opens its agent, a past one resumes. */
   const press = (conversation: Conversation, directory: DirectoryConversations) => () =>
@@ -135,6 +138,7 @@ export function ConversationList({
           statusFor={statusFor}
           roomy={roomy}
           onShowMore={() => showMore(directory.path)}
+          onLaunch={onLaunch && (() => onLaunch(directory))}
           onSearch={
             onSearch &&
             (() => onSearch({ directoryPath: directory.path, directoryName: directory.name }))
@@ -228,6 +232,8 @@ interface SectionProps {
   onShowMore: () => void;
   /** Opens the search on this Directory's conversations. */
   onSearch?: () => void;
+  /** Starts a new agent here. */
+  onLaunch?: () => void;
 }
 
 function DirectorySection({
@@ -240,6 +246,7 @@ function DirectorySection({
   roomy,
   onShowMore,
   onSearch,
+  onLaunch,
 }: SectionProps) {
   const { conversations } = directory;
   const empty = conversations.length === 0;
@@ -270,6 +277,7 @@ function DirectorySection({
         <RowTrail running={running} status={runningStatus} at={latest} now={now} push />
       </button>
       <Unfold open={expanded}>
+        {onLaunch && <LaunchRow name={directory.name} onPress={onLaunch} roomy={roomy} />}
         {/* A rule along the bottom: where its drawer ends. */}
         {directory.conversations.length === 0 ? (
           <p className="m-0 px-10 py-4 border-b-2 border-border text-xs text-text-muted">
@@ -307,6 +315,30 @@ function DirectorySection({
         )}
       </Unfold>
     </section>
+  );
+}
+
+/** An open Directory's first row: a new agent there, in a terminal the office owns. */
+function LaunchRow({
+  name,
+  onPress,
+  roomy,
+}: {
+  name: string;
+  onPress: () => void;
+  roomy: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid="conversations-directory-launch"
+      onClick={onPress}
+      title={`Start a new agent in ${name}`}
+      className={`w-full flex items-center gap-6 pl-10 pr-6 ${roomy ? 'py-6' : 'py-3'} bg-transparent border-none rounded-none cursor-pointer text-left text-sm text-accent hover:bg-btn-bg`}
+    >
+      <PixelIcon name="plus" scale={1} />
+      <span>Start an agent here</span>
+    </button>
   );
 }
 
