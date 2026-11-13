@@ -1,5 +1,29 @@
 # Changelog
 
+## v2.0.0
+
+Pixel Agents 2.0 continues from v1.6.0 as its own line ([osencan/PixelAgents](https://github.com/osencan/PixelAgents)); it will not be merged back into the 1.x project. See [FORK.md](FORK.md) for the full list of changes.
+
+### Watching
+
+- **Codex** sessions appear next to Claude Code, read-only, from local rollout logs.
+- **Honest statuses**: one lifecycle per agent, marked _reported_ or _guessed_. "Needs approval" only when Claude really asked.
+- **Detail panel**: click a character for its activity, time in state, this turn's tool steps, subagents, parent and recent history.
+- **Project labels** follow the real git root (symlinks, worktrees, same-named projects told apart) and can be pinned to a friendlier name.
+- **Rooms with a purpose** (Work, Rest, Waiting, Planning); idle agents doze in the rest room.
+- **Notifications** for approvals, finished turns, failed tools and test/build results.
+
+### Your own view
+
+- Filter by provider and project, hide agents without removing them, roles, project colors, desk memory and day/night tint, all per browser.
+
+### Steering
+
+- **Approve or deny** Claude permission requests from the browser, opt-in per project, with the full request shown and signed decisions.
+- **Start agents** in listed Directories from **+** or the sidebar, and type into them in the terminal drawer.
+- **Control tier**: the server's machine with the token, or another device after a PIN unlock (lockouts, idle expiry). Every control action is audited; skip-permissions is disabled.
+- Read-only viewers only ever see activity categories.
+
 ## v1.6.0
 
 ### Features

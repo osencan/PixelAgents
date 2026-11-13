@@ -5,19 +5,19 @@
 <div align="center">
 
 [![license](https://img.shields.io/github/license/osencan/PixelAgents?color=0183ff&style=flat)](LICENSE)
-[![based on](https://img.shields.io/badge/based%20on-Pixel%20Agents%20v1.6.0-0183ff?style=flat)](https://github.com/pixel-agents-hq/pixel-agents)
+[![version](https://img.shields.io/badge/version-2.0.0-0183ff?style=flat)](CHANGELOG.md)
 
 </div>
 
 <div align="center">
-<a href="#getting-started">🚀 Getting started</a> • <a href="#the-office-at-a-glance">👀 The office</a> • <a href="#agent-controls">🎛️ Agent controls</a> • <a href="#privacy-and-security">🔒 Privacy</a> • <a href="FORK.md">🍴 About this fork</a>
+<a href="#getting-started">🚀 Getting started</a> • <a href="#the-office-at-a-glance">👀 The office</a> • <a href="#agent-controls">🎛️ Agent controls</a> • <a href="#privacy-and-security">🔒 Privacy</a> • <a href="FORK.md">🆕 What's new in 2.0</a>
 </div>
 
 <br/>
 
-> **A community fork of [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents)** (based on v1.6.0), focused on watching and steering many **Claude Code** and **Codex** sessions from a browser, including from your phone over your LAN. It is not affiliated with the upstream project. All credit for Pixel Agents itself goes to its authors.
+Pixel Agents turns the AI coding agents running in your terminals into animated pixel-art characters working in a tiny office. They walk to their desks, type when they're editing, read when they're searching, and light up when they need you.
 
-Pixel Agents turns the AI coding agents running in your terminals into animated pixel-art characters working in a tiny office. They walk to their desks, type when they're editing, read when they're searching, and light up when they need you. This fork adds honest, reported statuses; a detail panel for every agent; per-browser filtering and hiding; rooms with a purpose; and, behind a PIN, the ability to approve permission requests, hire new agents and type into them from the browser.
+**Version 2.0** is built for watching and steering many **Claude Code** and **Codex** sessions from a browser, including from your phone over your LAN. It adds honest, reported statuses; a detail panel for every agent; per-browser filtering and hiding; rooms with a purpose; and, behind a PIN, the ability to approve permission requests, start new agents and type into them from the browser.
 
 <!-- Screenshot: the office with several agents, labels and rooms. -->
 
@@ -44,10 +44,10 @@ Pixel Agents turns the AI coding agents running in your terminals into animated 
 - **Approve or deny** a Claude permission request from the agent's panel, with the full request shown. Your terminal prompt keeps working in parallel: whichever answers first wins.
 - **Hire agents** into your listed folders and **type into them** in the browser's terminal drawer.
 
-### From upstream Pixel Agents
+### The office
 
 - **Office layout editor**: floors, walls, furniture, pets and named Areas. Layouts are saved and exported as JSON, and external asset packs are supported.
-- **Your own team**: a character editor with wardrobe, colors, a pixel editor and custom items. The pixel art is based on [JIK-A-4, Metro City](https://jik-a-4.itch.io/metrocity-free-topdown-character-pack).
+- **Your own team**: a character editor with wardrobe, colors, a pixel editor and custom items.
 - **Recent conversations**, **usage and context bars**, and the **office radio**.
 
 <p align="center">
@@ -63,11 +63,11 @@ Pixel Agents turns the AI coding agents running in your terminals into animated 
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and signed in. Codex is optional and detected if present.
 - Node.js 20 or later
-- macOS, Linux or Windows. This fork is developed and tested on macOS with the **standalone browser app**. The VS Code extension builds from the same source but is untested here.
+- macOS, Linux or Windows. Pixel Agents 2.0 is developed and tested on macOS with the **standalone browser app**. The VS Code extension builds from the same source but is untested here.
 
 ## Getting started
 
-This fork isn't published to npm; run it from source:
+Version 2.0 isn't published to npm; run it from source:
 
 ```bash
 git clone https://github.com/osencan/PixelAgents.git
@@ -146,7 +146,7 @@ Use **Settings → Add Asset Directory** to load external characters, pets and f
 
 ### Directories
 
-A Directory is a folder you can launch agents into. **+** opens the drawer, and **+ Directory** adds one: a name, a path, and optionally its preferred Areas and default characters. In this fork, agents can only be launched into listed Directories. **Settings → Show Start Directory** also lists the folder the server started in.
+A Directory is a folder you can launch agents into. **+** opens the drawer, and **+ Directory** adds one: a name, a path, and optionally its preferred Areas and default characters. Agents can only be launched into listed Directories. **Settings → Show Start Directory** also lists the folder the server started in.
 
 ### Characters
 
@@ -168,7 +168,7 @@ npm run test:server && npm run test:webview
 npm run build
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the project structure and how an event reaches the office, and [e2e/README.md](e2e/README.md) for the browser test suite. [FORK.md](FORK.md) summarizes what this fork changes.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the project structure and how an event reaches the office, and [e2e/README.md](e2e/README.md) for the browser test suite. [FORK.md](FORK.md) summarizes what changed in 2.0.
 
 ## Troubleshooting
 
@@ -178,8 +178,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the project structure and how an even
 - **Can't hire an agent**: add the folder as a **Directory** first; other folders are refused.
 - **The UI looks disconnected**: **Settings → Debug View** shows the connection and agent data.
 
-## Credits and license
+## Credits and thanks
 
-Pixel Agents was created by [Pablo De Lucca](https://github.com/pablodelucca) and its contributors: see the [upstream project](https://github.com/pixel-agents-hq/pixel-agents) and consider [supporting it](https://github.com/sponsors/pablodelucca). Character art is based on [JIK-A-4, Metro City](https://jik-a-4.itch.io/metrocity-free-topdown-character-pack).
+Pixel Agents 2.0 builds on [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents) 1.x, created by [Pablo De Lucca](https://github.com/pablodelucca) and its contributors. The office, layout editor, characters, radio and much more come from their work. Thank you! Consider [supporting the original project](https://github.com/sponsors/pablodelucca). Version 2.0 continues from v1.6.0 as its own line and is not affiliated with or endorsed by the original project.
 
-This fork is available under the [MIT License](LICENSE), like the original.
+Character art is based on [JIK-A-4, Metro City](https://jik-a-4.itch.io/metrocity-free-topdown-character-pack).
+
+## License
+
+[MIT](LICENSE), like the original.

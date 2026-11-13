@@ -1,10 +1,10 @@
-# About this fork
+# What's new in Pixel Agents 2.0
 
-This is a community fork of [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents) (based on v1.6.0) focused on **watching** several Claude Code and Codex sessions from a browser, including from other devices on your LAN. It is not affiliated with or endorsed by the upstream project; all credit for Pixel Agents itself goes to its authors. Licensed MIT, like upstream (see [LICENSE](LICENSE)).
+Pixel Agents 2.0 is built for **watching** many Claude Code and Codex sessions from a browser, including from other devices on your LAN, and for **steering** them through a guarded control surface: approving permission requests, starting agents and typing into them. Control is limited to the server's machine, or to devices unlocked with a PIN, and every control action is audited.
 
-The fork keeps the upstream office, adds observation features, and adds a guarded control surface: approving permission requests, hiring agents and typing into them. Control is limited to the server's machine, or to devices unlocked with a PIN, and every control action is audited.
+It keeps the 1.x office and continues from v1.6.0 as its own line; it will not be merged back. Credits are [at the end](#credits).
 
-## What it adds
+## What 2.0 adds
 
 **More agents, correctly identified**
 
@@ -60,8 +60,12 @@ node dist/cli.js --host 192.168.1.20 --port 3100   # also reachable on your LAN
 
 The server prints a private URL with a token: use it to edit the office and see full details. Open the plain address (without the token) on other devices for a read-only view. Keep the token private.
 
-Add `--no-terminal` for a watch-only office (no hiring agents, no terminals); approvals still work. Hook installation asks for your consent in the browser, as upstream does. Over plain HTTP the token and PIN cross your network unencrypted; prefer HTTPS (e.g. `tailscale serve`) on untrusted networks.
+Add `--no-terminal` for a watch-only office (no hiring agents, no terminals); approvals still work. Hook installation asks for your consent in the browser. Over plain HTTP the token and PIN cross your network unencrypted; prefer HTTPS (e.g. `tailscale serve`) on untrusted networks.
 
 ## Developing
 
-Same as upstream: `npm run check-types`, `npm run lint`, `npm run test:server`, `npm run test:webview`, `npm run build`. The browser e2e suite lives in `e2e/`.
+`npm run check-types`, `npm run lint`, `npm run test:server`, `npm run test:webview`, `npm run build`. The browser e2e suite lives in `e2e/`.
+
+## Credits
+
+Pixel Agents 2.0 builds on [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents) 1.x by [Pablo De Lucca](https://github.com/pablodelucca) and its contributors. Thank you! It is not affiliated with or endorsed by the original project. Licensed MIT, like the original (see [LICENSE](LICENSE)).
