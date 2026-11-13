@@ -152,7 +152,8 @@ test.describe('Standalone / Characters roster', () => {
     // The toolbar: + (New agent) with the Agents arrow beside it, then
     // Layout; Settings lives at the foot of the conversation sidebar.
     const toolbar = page.getByRole('button', { name: 'New agent' }).locator('xpath=../../..');
-    await expect(toolbar.getByRole('button')).toHaveText(['', '', 'Layout']);
+    // This fork adds the Filter button (it holds the agent controls too).
+    await expect(toolbar.getByRole('button')).toHaveText(['', '', 'Layout', 'Filter']);
     await expect(
       page.getByTestId('conversation-sidebar').getByRole('button', { name: 'Settings' }),
     ).toBeVisible();

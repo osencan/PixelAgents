@@ -237,6 +237,7 @@ export function readNewLines(
       cancelPermissionTimer(agentId, permissionTimers);
       if (agent.permissionSent && !agent.hookDelivered && !agent.leadAgentId) {
         agent.permissionSent = false;
+        agent.permissionSuspected = false;
         agents.broadcast({ type: 'agentToolPermissionClear', id: agentId });
       }
     }
@@ -1324,6 +1325,13 @@ export function scanExternalDir(
     // Skip files recently dismissed by the user (closed via X).
     // isDismissed() handles the 3-minute cooldown and auto-expires old entries.
     if (dismissalTracker!.isDismissed(file)) continue;
+
+    // Skip ended sessions until their transcript is written again (resume).
+    try {
+      if (dismissalTracker!.isEndedUnchanged(file, fs.statSync(file).mtimeMs)) continue;
+    } catch {
+      continue;
+    }
 
     // Check if already tracked by an agent (normalize paths for comparison).
     // This prevents the external scanner from adopting /clear files (already

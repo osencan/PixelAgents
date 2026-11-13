@@ -34,6 +34,8 @@ interface StoredUsage extends ReportedUsage {
 export const PRIVILEGED_BROADCAST_TYPES: ReadonlySet<string> = new Set([
   'usageLimits',
   'usageBridgeStatus',
+  // Which projects accept browser approvals: for tokened (control) panels only.
+  'approvalOptIns',
 ]);
 
 let cache: Record<string, StoredUsage> | null = null;

@@ -132,7 +132,9 @@ export class PixelAgentsServer {
       : loadOrCreateStandaloneToken({ rotate: options?.rotateToken ?? false });
     const store = options?.store;
 
+    const decisionKey = crypto.randomBytes(32).toString('hex');
     const { app, port } = await createHttpServer({
+      decisionKey,
       embedded,
       host,
       port: options?.port,
@@ -154,6 +156,7 @@ export class PixelAgentsServer {
       port,
       pid: process.pid,
       token,
+      decisionKey,
       startedAt: Date.now(),
       servesSpa: wantsSpa,
       protocol: SERVER_REGISTRY_PROTOCOL_VERSION,

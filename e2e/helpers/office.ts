@@ -319,8 +319,12 @@ export async function closeAgentFromOverlay(
     window.__pixelAgentsTestHooks?.selectAgent?.(id);
   }, agentId);
 
-  const closeButton = overlay.locator('button[title="Close agent"]');
+  // Removal lives on the agent's card (the panel only hides): a launched
+  // agent's × closes it after a confirm.
+  const closeButton = frame.getByTitle(`Agent ${agentId}`).locator('button[title="Close agent"]');
   await expect(closeButton).toBeVisible({ timeout });
-  narrate.step('closing the agent via its "×" overlay button');
+  narrate.step('closing the agent via its card "×"');
+  const page = 'page' in frame ? frame.page() : frame;
+  page.once('dialog', (dialog) => void dialog.accept());
   await closeButton.click();
 }

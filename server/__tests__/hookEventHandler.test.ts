@@ -476,6 +476,118 @@ describe('HookEventHandler', () => {
     expect(onSessionEnd).toHaveBeenCalledWith(1, 'exit');
   });
 
+  it('PostToolUseFailure reports a failure without tool content; PostToolUse does not', () => {
+    agents.set(1, createTestAgent({ id: 1, sessionId: 'sess-1' }));
+    handler.registerAgent('sess-1', 1);
+    handler.handleEvent('claude', {
+      hook_event_name: 'PostToolUse',
+      session_id: 'sess-1',
+      tool_name: 'Bash',
+    });
+    expect(mockWebview.messages.some((m) => m.type === 'agentToolFailed')).toBe(false);
+    handler.handleEvent('claude', {
+      hook_event_name: 'PostToolUseFailure',
+      session_id: 'sess-1',
+      tool_name: 'Bash',
+      tool_input: { command: 'secret' },
+    });
+    const failed = mockWebview.messages.find((m) => m.type === 'agentToolFailed');
+    expect(failed).toEqual({ type: 'agentToolFailed', id: 1, at: expect.any(Number) });
+  });
+
+  it('reports test/build outcomes by category, never the command', () => {
+    agents.set(1, createTestAgent({ id: 1, sessionId: 'sess-1' }));
+    handler.registerAgent('sess-1', 1);
+    const run = (command: string, end: { hook_event_name: string } & Record<string, unknown>) => {
+      handler.handleEvent('claude', {
+        hook_event_name: 'PreToolUse',
+        session_id: 'sess-1',
+        tool_name: 'Bash',
+        tool_input: { command },
+      });
+      handler.handleEvent('claude', { session_id: 'sess-1', tool_name: 'Bash', ...end });
+    };
+    run('npm test -- --secret', { hook_event_name: 'PostToolUse', tool_response: {} });
+    run('npm run build', { hook_event_name: 'PostToolUseFailure' });
+    run('npm run build', { hook_event_name: 'PostToolUse', tool_response: { exit_code: 2 } });
+    run('ls', { hook_event_name: 'PostToolUse', tool_response: {} });
+    const results = mockWebview.messages.filter((m) => m.type === 'agentCheckResult');
+    expect(results.map((r) => [r.check, r.ok])).toEqual([
+      ['test', true],
+      ['build', false],
+      ['build', false],
+    ]);
+    expect(
+      JSON.stringify(mockWebview.messages.filter((m) => m.type === 'agentCheckResult')),
+    ).not.toContain('secret');
+  });
+
+  it('tracks Claude plan mode from permission_mode on hook events', () => {
+    const agent = createTestAgent({ id: 1, sessionId: 'sess-1' });
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+    handler.handleEvent('claude', {
+      hook_event_name: 'PreToolUse',
+      session_id: 'sess-1',
+      permission_mode: 'plan',
+      tool_name: 'Glob',
+      tool_input: {},
+    });
+    expect(agent.planMode).toBe(true);
+    handler.handleEvent('claude', {
+      hook_event_name: 'PreToolUse',
+      session_id: 'sess-1',
+      permission_mode: 'default',
+      tool_name: 'Edit',
+      tool_input: {},
+    });
+    expect(agent.planMode).toBe(false);
+  });
+
+  it('an ended session is not resurrected by late events, but a resume lifts the tombstone', () => {
+    const agent = createTestAgent({ id: 1, sessionId: 'sess-1' });
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+    // The host removes the agent on session end (agentRuntime does this).
+    handler.setLifecycleCallbacks({
+      onSessionEnd: (id) => {
+        handler.unregisterAgent('sess-1');
+        agents.delete(id);
+      },
+    });
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionEnd',
+      session_id: 'sess-1',
+      reason: 'exit',
+    });
+    expect(agents.has(1)).toBe(false);
+
+    // A delayed PreToolUse arrives, and the same id is about to be re-adopted.
+    agents.set(2, createTestAgent({ id: 2, sessionId: 'sess-1' }));
+    mockWebview.messages.length = 0;
+    handler.handleEvent('claude', {
+      hook_event_name: 'PreToolUse',
+      session_id: 'sess-1',
+      tool_name: 'Bash',
+      tool_input: { command: 'echo late' },
+    });
+    expect(mockWebview.messages.filter((m) => m.id === 2)).toEqual([]);
+
+    // A real resume starts the session again: its events count once more.
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionStart',
+      session_id: 'sess-1',
+      source: 'resume',
+    });
+    handler.handleEvent('claude', {
+      hook_event_name: 'PreToolUse',
+      session_id: 'sess-1',
+      tool_name: 'Bash',
+      tool_input: { command: 'echo resumed' },
+    });
+    expect(mockWebview.messages.some((m) => m.id === 2)).toBe(true);
+  });
+
   it('SessionEnd(reason=resume) delays onSessionEnd for SESSION_END_GRACE_MS', async () => {
     const agent = createTestAgent({ id: 1 });
     agents.set(1, agent);

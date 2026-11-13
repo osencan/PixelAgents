@@ -516,6 +516,7 @@ export function processTranscriptLine(
       agent.isWaiting = true;
       agent.turnActive = false;
       agent.permissionSent = false;
+      agent.permissionSuspected = false;
       agent.hadToolsInTurn = false;
       // Skip status post when hooks already handled it
       if (!agent.hookDelivered) {

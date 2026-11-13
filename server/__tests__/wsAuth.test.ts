@@ -101,6 +101,9 @@ describe('isAllowedWebSocketOrigin', () => {
 describe('redactTokenQuery', () => {
   it('blanks the token value wherever it sits in the query', () => {
     expect(redactTokenQuery('/ws?token=abc-123')).toBe('/ws?token=[redacted]');
+    expect(redactTokenQuery('/terminal/1?token=abc&ticket=xyz')).toBe(
+      '/terminal/1?token=[redacted]&ticket=[redacted]',
+    );
     expect(redactTokenQuery('/terminal/1?token=abc-123')).toBe('/terminal/1?token=[redacted]');
     expect(redactTokenQuery('/ws?x=1&token=abc&y=2')).toBe('/ws?x=1&token=[redacted]&y=2');
     expect(redactTokenQuery('/ws?token=abc#frag')).toBe('/ws?token=[redacted]#frag');

@@ -172,6 +172,8 @@ export const AREA_LABEL_FALLBACK_COLOR = '#ffffff';
 export const AREA_LABEL_SHADOW_COLOR = '#000000';
 /** Drop-shadow alpha behind area labels. */
 export const AREA_LABEL_SHADOW_ALPHA = 0.6;
+/** Rows above a room's bottom floor row: the wall below overdraws that row. */
+export const AREA_LABEL_ROWS_ABOVE_BOTTOM = 1;
 
 // ── VisualColorPicker (HSV wheel + brightness for carpets) ───
 export const VISUAL_COLOR_PICKER_SV_SIZE_PX = 180;
@@ -877,3 +879,83 @@ export const MUSIC_VERSION_GAP_PX = 6;
 export const VERSION_LABEL_BOTTOM_PX = 10;
 /** The update notice / changelog tooltip, this far above the label's spot. */
 export const VERSION_NOTICE_ABOVE_PX = 34;
+
+// ── Agent detail panel ─────────────────────────────────────
+/** Width of the panel docked beside the office (desktop). */
+export const AGENT_DETAIL_PANEL_WIDTH_PX = 300;
+/** Most recent tool steps listed under "This turn". */
+export const AGENT_DETAIL_RECENT_TOOLS = 8;
+/** localStorage key: agent keys this viewer hid from the office (per browser). */
+export const HIDDEN_AGENTS_STORAGE_KEY = 'pixel-agents.hiddenAgents';
+/** Opacity of a hidden agent's card in the stack. */
+export const HIDDEN_AGENT_CARD_OPACITY = 0.4;
+/** localStorage key: the providers/projects this viewer filtered out (per browser). */
+export const AGENT_FILTER_STORAGE_KEY = 'pixel-agents.agentFilter';
+/** Height class of the bottom toolbar's button row (shared by its trailing filter). */
+export const TOOLBAR_ROW_HEIGHT_CLASS = 'h-52';
+
+// ── Room purposes ──────────────────────────────────────────
+/** Default minutes of reported idle in the rest room before an agent sleeps. */
+export const ROOM_SLEEP_AFTER_MIN_DEFAULT = 5;
+/** Choices offered for the sleep delay (minutes; 0 = never). */
+export const ROOM_SLEEP_AFTER_MIN_OPTIONS = [0, 2, 5, 10, 15, 30];
+/** Legacy name convention migrated to purpose 'rest'. */
+export const REST_AREA_LABEL_PATTERN = /^rest(?: room)?$/i;
+/** Pre-purpose fallback rest area for the original four-room layout. */
+export const LEGACY_REST_AREA_LABEL = 'Blue Room';
+/** Seconds before a character that found no free, reachable room tile tries again. */
+export const ROOM_RESERVATION_RETRY_SEC = 2;
+
+// ── Activity history & notifications ───────────────────────
+/** Most recent history entries kept per agent in the browser (matches the server). */
+export const AGENT_HISTORY_MAX = 30;
+/** History entries listed in the detail panel. */
+export const AGENT_DETAIL_HISTORY_ROWS = 10;
+/** localStorage key: whether this viewer gets activity notifications (per browser). */
+export const NOTIFICATIONS_STORAGE_KEY = 'pixel-agents.notifications';
+/** How long a notification stays up. */
+export const TOAST_DURATION_MS = 6000;
+/** Notifications shown at once (older ones give way). */
+export const TOAST_MAX_VISIBLE = 3;
+/** Preferred distance (tiles, any direction) between agents in a rest/waiting
+ *  room: 2 leaves an empty tile between them. Packed closer only when full. */
+export const ROOM_MIN_SPACING_TILES = 2;
+/** How long a test/build result floats over the agent. */
+export const CHECK_RESULT_SHOW_MS = 4000;
+
+// ── Project accents & seat memory ──────────────────────────
+/** Distinct accent colors; a project's name picks one stably (always shown
+ *  next to the project's text, never as the only cue). */
+export const PROJECT_ACCENT_COLORS = [
+  '#e5534b',
+  '#f69d50',
+  '#e2c08d',
+  '#57ab5a',
+  '#39c5cf',
+  '#539bf5',
+  '#986ee2',
+  '#e275ad',
+  '#c69026',
+  '#768390',
+];
+/** localStorage key: the desk each project last used (per browser). */
+export const PROJECT_SEATS_STORAGE_KEY = 'pixel-agents.projectSeats';
+
+// ── Role badges ────────────────────────────────────────────
+/** Roles offered in the panel (custom text is allowed too). */
+export const AGENT_ROLE_OPTIONS = ['builder', 'reviewer', 'researcher', 'tester', 'planner'];
+/** Longest role badge text. */
+export const AGENT_ROLE_MAX_LENGTH = 20;
+/** localStorage key: roles this viewer assigned, by agent key (per browser). */
+export const AGENT_ROLES_STORAGE_KEY = 'pixel-agents.agentRoles';
+
+// ── Ambient tint (decorative) ──────────────────────────────
+/** Office tint at night (21:00-05:59 local), dusk (18-20) and dawn (06-07). */
+export const AMBIENT_NIGHT_TINT = 'rgba(20, 30, 90, 0.22)';
+export const AMBIENT_TWILIGHT_TINT = 'rgba(255, 140, 60, 0.08)';
+/** How often the tint follows the clock. */
+export const AMBIENT_REFRESH_MS = 60_000;
+/** localStorage key: whether this viewer shows the day/night tint. */
+export const AMBIENT_STORAGE_KEY = 'pixel-agents.ambientTint';
+/** Longest pinned project display name (the server enforces the same). */
+export const PROJECT_LABEL_MAX_LENGTH = 40;

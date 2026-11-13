@@ -8,6 +8,7 @@ import {
   AREA_LABEL_FALLBACK_COLOR,
   AREA_LABEL_FONT_SIZE_PX,
   AREA_LABEL_MIN_FONT_SIZE_PX,
+  AREA_LABEL_ROWS_ABOVE_BOTTOM,
   AREA_LABEL_SHADOW_ALPHA,
   AREA_LABEL_SHADOW_COLOR,
   AREA_OVERLAY_ALPHA,
@@ -255,8 +256,11 @@ export function renderAreaLabels(
   const colorMap = new Map<string, string>();
   for (const a of areas) colorMap.set(a.label, a.color);
 
-  // Centroid accumulator: label → { sumX, sumY, count }.
-  const centroids = new Map<string, { sumX: number; sumY: number; count: number }>();
+  // Place labels inside the bottom edge of each painted area.
+  const centroids = new Map<
+    string,
+    { sumX: number; maxRow: number; count: number; rowCounts: Map<number, number> }
+  >();
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const label = areaTiles[r * cols + c];
@@ -264,10 +268,11 @@ export function renderAreaLabels(
       const acc = centroids.get(label);
       if (acc) {
         acc.sumX += c;
-        acc.sumY += r;
+        acc.maxRow = Math.max(acc.maxRow, r);
+        acc.rowCounts.set(r, (acc.rowCounts.get(r) ?? 0) + 1);
         acc.count += 1;
       } else {
-        centroids.set(label, { sumX: c, sumY: r, count: 1 });
+        centroids.set(label, { sumX: c, maxRow: r, count: 1, rowCounts: new Map([[r, 1]]) });
       }
     }
   }
@@ -283,7 +288,17 @@ export function renderAreaLabels(
 
   for (const [label, acc] of centroids) {
     const cx = offsetX + (acc.sumX / acc.count + 0.5) * s;
-    const cy = offsetY + (acc.sumY / acc.count + 0.5) * s;
+    // Ignore narrow doorways and stray painted cells below the main room body.
+    const widestRow = Math.max(...acc.rowCounts.values());
+    const bodyRows = [...acc.rowCounts]
+      .filter(([, width]) => width >= widestRow / 2)
+      .map(([row]) => row);
+    // Lift off the bottom row, which the wall sprite below partly covers.
+    const labelRow = Math.max(
+      Math.min(...bodyRows),
+      Math.max(...bodyRows) - AREA_LABEL_ROWS_ABOVE_BOTTOM,
+    );
+    const cy = offsetY + (labelRow + 0.5) * s;
 
     // Pixel-art drop shadow (1px right + down, no blur).
     ctx.globalAlpha = AREA_LABEL_SHADOW_ALPHA;

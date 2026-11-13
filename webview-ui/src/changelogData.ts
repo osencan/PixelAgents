@@ -21,11 +21,54 @@ export function toMajorMinor(version: string): string {
   return parts.length >= 2 ? `${parts[0]}.${parts[1]}` : version;
 }
 
-export const CHANGELOG_REPO_URL = 'https://github.com/pixel-agents-hq/pixel-agents';
+export const CHANGELOG_REPO_URL = 'https://github.com/osencan/PixelAgents';
 
-export const DISCORD_INVITE_URL = 'https://discord.gg/Yk7jXebv9H';
+export const ISSUES_URL = `${CHANGELOG_REPO_URL}/issues`;
 
 export const changelogEntries: ChangelogEntry[] = [
+  {
+    version: '2.0',
+    sections: [
+      {
+        title: 'Watching',
+        items: [
+          'Codex sessions appear next to Claude Code (read-only, from local rollout logs)',
+          'Every status is marked reported or guessed; "needs approval" only when Claude really asked',
+          'Click a character for its detail panel: activity, time in state, tool steps, subagents and history',
+          'Project labels follow the real git root, worktrees included, and can be pinned to a friendlier name',
+          'Rooms with a purpose: Work, Rest, Waiting and Planning; idle agents doze in the rest room',
+          'Notifications for approvals, finished turns, failures and test/build results',
+        ],
+      },
+      {
+        title: 'Your own view',
+        items: [
+          'Filter by provider and project, and hide agents without removing them',
+          'Roles, project colors, desk memory and a day/night tint, kept per browser',
+        ],
+      },
+      {
+        title: 'Steering',
+        items: [
+          'Approve or deny Claude permission requests from the browser, opt-in per project',
+          'Start agents in your Directories from + or the sidebar, and type into them',
+          'Other devices unlock controls with a PIN; every control action is audited',
+        ],
+      },
+    ],
+    contributors: [
+      {
+        name: '@osencan',
+        url: 'https://github.com/osencan',
+        description: 'Pixel Agents 2.0',
+      },
+      {
+        name: 'Pixel Agents 1.x',
+        url: 'https://github.com/pixel-agents-hq/pixel-agents',
+        description: 'the original project by @pablodelucca and contributors, which 2.0 builds on',
+      },
+    ],
+  },
   {
     version: '1.6',
     sections: [

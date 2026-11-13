@@ -506,3 +506,73 @@ describe('/ws privileged-message gate', () => {
     expect(readHooksConsent()).toBe(true);
   });
 });
+
+describe('/ws remote control unlock', () => {
+  let server: InstanceType<typeof PixelAgentsServer>;
+  const sockets: WebSocket[] = [];
+
+  beforeEach(async () => {
+    tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'pxl-ws-ctl-'));
+    fs.mkdirSync(path.join(tmpBase, '.pixel-agents'), { recursive: true });
+    const policy = await import('../src/controlPolicy.js');
+    policy.resetControlPolicyForTests();
+    policy.setControlPin('482915');
+    server = new PixelAgentsServer();
+  });
+
+  afterEach(() => {
+    for (const socket of sockets) socket.terminate();
+    sockets.length = 0;
+    server?.stop();
+    fs.rmSync(tmpBase, { recursive: true, force: true });
+  });
+
+  /** A tokened socket that counts as another device (a relay header). */
+  async function remoteSocket(): Promise<{ socket: WebSocket; seen: Record<string, unknown>[] }> {
+    const config = await server.start({ embedded: false, store: new AgentStateStore() });
+    const port = config.port.toString();
+    const { socket } = await connectTo(
+      `ws://127.0.0.1:${port}/ws?token=${encodeURIComponent(config.token)}`,
+      { Origin: `http://127.0.0.1:${port}`, 'X-Forwarded-For': '192.0.2.7' },
+    );
+    sockets.push(socket);
+    const seen: Record<string, unknown>[] = [];
+    socket.on('message', (data: Buffer) => seen.push(JSON.parse(data.toString())));
+    return { socket, seen };
+  }
+
+  const lastAccess = (seen: Record<string, unknown>[]) =>
+    seen.filter((m) => m.type === 'controlAccess').at(-1);
+
+  it('drops control on the open socket as soon as the unlock is revoked (review fix)', async () => {
+    const { socket, seen } = await remoteSocket();
+    socket.send(JSON.stringify({ type: 'unlockControl', pin: '482915' }));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(lastAccess(seen)).toMatchObject({ control: true, local: false });
+
+    // A new PIN revokes every unlock; the socket hears it without sending anything.
+    const policy = await import('../src/controlPolicy.js');
+    policy.setControlPin('719264');
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(lastAccess(seen)).toMatchObject({ control: false });
+    expect(policy.hasControlClient()).toBe(false);
+  });
+
+  it('a second unlock replaces the first, and closing the page ends it (review fix)', async () => {
+    const { socket, seen } = await remoteSocket();
+    const policy = await import('../src/controlPolicy.js');
+    const unlock = async () => {
+      socket.send(JSON.stringify({ type: 'unlockControl', pin: '482915' }));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return lastAccess(seen)?.ticket as string;
+    };
+    const first = await unlock();
+    const second = await unlock();
+    expect(second).not.toBe(first);
+    expect(policy.isTicketValid(first)).toBe(false);
+    expect(policy.isTicketValid(second)).toBe(true);
+    socket.close();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(policy.isTicketValid(second)).toBe(false);
+  });
+});

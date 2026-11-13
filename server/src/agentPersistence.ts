@@ -21,7 +21,8 @@ import type { AgentState } from './types.js';
  *  Persisting one would resurrect an immortal character whose completion
  *  signal never comes. */
 export function toPersistedAgent(agent: AgentState): PersistedAgent | null {
-  if (agent.spawnToolUseId) return null;
+  // Codex characters are reconstructed from their read-only rollout observer.
+  if (agent.spawnToolUseId || agent.providerId === 'codex') return null;
   return {
     id: agent.id,
     sessionId: agent.sessionId,

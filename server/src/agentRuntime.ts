@@ -278,6 +278,7 @@ export class AgentRuntime {
         if (!agent) return;
         this.dismissalTracker.clearSeededMtime(agent.jsonlFile);
         this.dismissalTracker.dismiss(agent.jsonlFile);
+        this.dismissalTracker.markEnded(agent.jsonlFile);
         // Covers real team leads AND leads of background teammates (which
         // have children but no teamName). No-op when childless.
         this.removeTeammates(agentId);

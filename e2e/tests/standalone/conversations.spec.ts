@@ -100,6 +100,7 @@ test.describe('Standalone / conversation sidebar', () => {
       .filter({ has: page.getByTestId('conversation-status') });
     await expect(running).toHaveCount(1);
     // The card's ×: the agent comes in focused, so its overlay has one too.
+    page.once('dialog', (dialog) => void dialog.accept());
     await page.getByTitle('Agent 1').locator('button[title="Close agent"]').click();
     await expectOverlayCount(page, 0);
 
@@ -147,6 +148,25 @@ test.describe('Standalone / conversation sidebar', () => {
       )
       .toEqual({ palette: before.palette, repeat: before.repeat, seatId: before.seatId });
     await expect(running).toHaveCount(1);
+  });
+
+  test('an open Directory section starts a new agent there @area:standalone', async ({
+    page,
+    standalone,
+  }) => {
+    await setSettings(page, { alwaysShowLabels: true });
+    await arrangeNextClaudeInvocation(
+      standalone.tmpHome,
+      claudeScenario('started from the sidebar').holdOpenFor(60_000).build(),
+    );
+    const sidebar = page.getByTestId('conversation-sidebar');
+    const header = sidebar
+      .locator('button[aria-expanded]')
+      .filter({ hasText: path.basename(standalone.workspaceDir) });
+    await header.click();
+    await sidebar.getByTestId('conversations-directory-launch').click();
+    await expectOverlayCount(page, 1);
+    await expect.poll(() => invocations(standalone.mockLogFile)).toContain('session-id=');
   });
 
   test('a Directory lists five past conversations, shows five more on request, and the search finds any of them @area:standalone', async ({

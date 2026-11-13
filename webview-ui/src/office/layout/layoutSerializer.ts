@@ -1,4 +1,5 @@
 import type { ColorValue } from '../../components/ui/types.js';
+import { REST_AREA_LABEL_PATTERN } from '../../constants.js';
 import { getColorizedSprite } from '../colorize.js';
 import type {
   FurnitureInstance,
@@ -355,6 +356,16 @@ function migrateLayout(layout: OfficeLayout): OfficeLayout {
   // Default pets to empty array if absent (backward-compat for legacy layouts).
   if (!layout.pets) {
     layout = { ...layout, pets: [] };
+  }
+
+  // Areas named Rest / Rest Room predate purposes: record it, so a later rename keeps it.
+  if (layout.areas?.some((a) => !a.purpose && REST_AREA_LABEL_PATTERN.test(a.label.trim()))) {
+    layout = {
+      ...layout,
+      areas: layout.areas.map((a) =>
+        !a.purpose && REST_AREA_LABEL_PATTERN.test(a.label.trim()) ? { ...a, purpose: 'rest' } : a,
+      ),
+    };
   }
 
   if (layout.tileColors && layout.tileColors.length === layout.tiles.length) {

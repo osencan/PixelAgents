@@ -10,6 +10,8 @@
 
 import * as path from 'path';
 
+import { startAgentKeyTracker } from './agentKeyTracker.js';
+import { startAgentLifecycle } from './agentLifecycle.js';
 import { AgentRuntime } from './agentRuntime.js';
 import { AgentStateStore } from './agentStateStore.js';
 import {
@@ -19,7 +21,9 @@ import {
   loadExternalCharacters,
 } from './assetReload.js';
 import { getCharacterProfiles, watchCharacterProfiles } from './characterProfilesPersistence.js';
+import { startClaudeDirectoryLabels } from './claudeDirectoryLabels.js';
 import type { AssetCache, ReloadAssetsSideEffect } from './clientMessageHandler.js';
+import { startCodexSessions } from './codexSessions.js';
 import {
   getHooksConsent,
   getHooksEnabled,
@@ -33,7 +37,9 @@ import {
   TERMINAL_DISABLED_BY_FLAG_REASON,
   WILDCARD_HOSTNAMES,
 } from './constants.js';
+import { startApprovalOptInBroadcaster } from './controlPolicy.js';
 import { FileStateAdapter } from './fileStateAdapter.js';
+import { startPermissionBroker } from './permissionBroker.js';
 import {
   claudeProvider,
   copyHookScript,
@@ -508,12 +514,25 @@ async function main(): Promise<void> {
       `\n  Pixel Agents server running at http://${displayHost}:${config.port}/?token=${config.token}\n`,
     );
 
+    const codexSessions = startCodexSessions(store);
+    const claudeDirectoryLabels = startClaudeDirectoryLabels(store);
+    const agentLifecycle = startAgentLifecycle(store);
+    const agentKeyTracker = startAgentKeyTracker(store);
+    const approvalOptIns = startApprovalOptInBroadcaster(store);
+    const permissionBroker = startPermissionBroker(store);
+
     // ── Graceful shutdown ──
     let shuttingDown = false;
     async function shutdown(): Promise<void> {
       if (shuttingDown) return;
       shuttingDown = true;
       console.log('\nShutting down...');
+      codexSessions.dispose();
+      claudeDirectoryLabels.dispose();
+      agentLifecycle.dispose();
+      agentKeyTracker.dispose();
+      approvalOptIns.dispose();
+      permissionBroker.dispose();
       // In process: kill child terminals and wait for them (each exit closes
       // its agent): exiting now would cancel the SIGKILL escalation and leave
       // a child that ignores SIGHUP orphaned on a dead server. With the PTY

@@ -29,8 +29,10 @@ import {
   removeFurniture,
   renameArea,
   rotateFurniture,
+  setAreaPurpose,
   toggleFurnitureState,
   updateAreaColor,
+  updateRoomPolicy,
   wallStrokeAdds,
   wallStrokeTile,
 } from '../office/editor/editorActions.js';
@@ -38,9 +40,11 @@ import type { EditorState } from '../office/editor/editorState.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { getRotatedType, getToggledType } from '../office/layout/furnitureCatalog.js';
 import type {
+  AreaPurpose,
   EditTool as EditToolType,
   OfficeLayout,
   PlacedPet,
+  RoomPolicy,
   TileType as TileTypeVal,
 } from '../office/types.js';
 import { EditTool } from '../office/types.js';
@@ -96,6 +100,8 @@ interface EditorActions extends Omit<FurnitureColorActions, 'pickColorAt'> {
   handleRemoveArea: (label: string) => void;
   handleRenameArea: (oldLabel: string, newLabel: string) => void;
   handleAreaColorChange: (label: string, color: string) => void;
+  handleAreaPurposeChange: (label: string, purpose: AreaPurpose) => void;
+  handleRoomPolicyChange: (change: RoomPolicy) => void;
 }
 
 /** Default integer zoom (device pixels per sprite pixel) for a fresh session.
@@ -340,6 +346,24 @@ export function useEditorActions(
       if (next !== layout) {
         applyEdit(next);
       }
+    },
+    [getOfficeState, applyEdit],
+  );
+
+  const handleAreaPurposeChange = useCallback(
+    (label: string, purpose: AreaPurpose) => {
+      const layout = getOfficeState().getLayout();
+      const next = setAreaPurpose(layout, label, purpose);
+      if (next !== layout) applyEdit(next);
+    },
+    [getOfficeState, applyEdit],
+  );
+
+  const handleRoomPolicyChange = useCallback(
+    (change: RoomPolicy) => {
+      const layout = getOfficeState().getLayout();
+      const next = updateRoomPolicy(layout, change);
+      if (next !== layout) applyEdit(next);
     },
     [getOfficeState, applyEdit],
   );
@@ -793,5 +817,7 @@ export function useEditorActions(
     handleRemoveArea,
     handleRenameArea,
     handleAreaColorChange,
+    handleAreaPurposeChange,
+    handleRoomPolicyChange,
   };
 }

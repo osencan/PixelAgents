@@ -1,7 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 
-import { Button } from '../../components/ui/Button.js';
-import { PixelIcon } from '../../components/ui/PixelIcon.js';
 import {
   BUBBLE_FADE_DURATION_SEC,
   BUBBLE_SITTING_OFFSET_PX,
@@ -18,21 +16,31 @@ import {
   TOOL_OVERLAY_GAP_PX,
   TOOL_OVERLAY_VERTICAL_OFFSET,
 } from '../../constants.js';
+
+/** Link lines meet a character this far above its feet (world px, mid-body). */
+const LINK_LINE_ANCHOR_OFFSET_PX = 10;
+
+/** Side of the '!' beacon shown when no permission bubble sprite is up (CSS px). */
+const APPROVAL_BEACON_SIZE_PX = 18;
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
+import {
+  getActivityText,
+  lifecycleAwareText,
+  NEEDS_APPROVAL_TEXT,
+  WAITING_INPUT_ACTIVITY_TEXT,
+} from '../agentActivity.js';
+import { getAgentLifecycle, lifecycleText } from '../agentLifecycles.js';
+import { getAgentRole } from '../agentRoles.js';
+import { activeCheckResult, checkText } from '../checkResults.js';
 import { ContextBar } from '../ContextBar.js';
 import { contextLeft } from '../contextGauge.js';
 import type { OfficeState } from '../engine/officeState.js';
 import { overlayProjection } from '../projection.js';
+import { projectAccent } from '../projectPrefs.js';
 import { getCachedSprite } from '../sprites/spriteCache.js';
 import { BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE } from '../sprites/spriteData.js';
 import type { ToolActivity } from '../types.js';
 import { CharacterState } from '../types.js';
-
-// Both turn-end states show the green checkmark bubble. A finished turn (Stop)
-// shows ONLY the checkmark (the label falls through to its normal idle text);
-// going idle waiting on the user (Notification(idle_prompt)) additionally
-// surfaces this label. Driven by Character.waitingAwaitingInput.
-const WAITING_INPUT_ACTIVITY_TEXT = 'Waiting for input';
 
 interface ToolOverlayProps {
   officeState: OfficeState;
@@ -43,40 +51,7 @@ interface ToolOverlayProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
   zoom: number;
   panRef: React.RefObject<{ x: number; y: number }>;
-  onCloseAgent: (id: number) => void;
   alwaysShowOverlay: boolean;
-}
-
-/** Derive a short human-readable activity string from tools/status */
-function getActivityText(
-  agentId: number,
-  agentTools: Record<number, ToolActivity[]>,
-  isActive: boolean,
-  bubbleType: 'permission' | 'waiting' | null,
-  waitingAwaitingInput: boolean,
-): string {
-  if (bubbleType === 'permission') return 'Needs approval';
-  // Only the idle case ("Waiting for input") gets a dedicated label. A finished
-  // turn (Stop, waitingAwaitingInput=false) falls through so the checkmark alone
-  // signals "done", same as the original behavior.
-  if (bubbleType === 'waiting' && waitingAwaitingInput) return WAITING_INPUT_ACTIVITY_TEXT;
-
-  const tools = agentTools[agentId];
-  if (tools && tools.length > 0) {
-    // Find the latest non-done tool
-    const activeTool = [...tools].reverse().find((t) => !t.done);
-    if (activeTool) {
-      if (activeTool.permissionWait) return 'Needs approval';
-      return activeTool.status;
-    }
-    // All tools done but agent still active (mid-turn) — keep showing last tool status
-    if (isActive) {
-      const lastTool = tools[tools.length - 1];
-      if (lastTool) return lastTool.status;
-    }
-  }
-
-  return 'Idle';
 }
 
 /** A speech-bubble sprite blitted into a DOM canvas. Bubbles live in the DOM
@@ -109,7 +84,6 @@ export function ToolOverlay({
   containerRef,
   zoom,
   panRef,
-  onCloseAgent,
   alwaysShowOverlay,
 }: ToolOverlayProps) {
   const [, setTick] = useState(0);
@@ -146,11 +120,48 @@ export function ToolOverlay({
   // All character IDs
   const allIds = [...agents, ...subagentCharacters.map((s) => s.id)];
 
+  // The selected agent's real links (lead/parent and the agents naming it as
+  // theirs), drawn as dashed lines; hidden or filtered ends are left out.
+  const linkLines: Array<{ key: string; x1: number; y1: number; x2: number; y2: number }> = [];
+  const sel = selectedId !== null ? officeState.characters.get(selectedId) : undefined;
+  if (sel && selectedId !== null && !officeState.isHidden(selectedId)) {
+    const at = (c: { x: number; y: number }) => ({
+      x: project.toScreenX(c.x),
+      y: project.toScreenY(c.y - LINK_LINE_ANCHOR_OFFSET_PX),
+    });
+    const from = at(sel);
+    const parentId = sel.leadAgentId ?? sel.parentAgentId ?? undefined;
+    const ends = [...officeState.characters.values()].filter(
+      (c) => c.id === parentId || c.leadAgentId === selectedId || c.parentAgentId === selectedId,
+    );
+    for (const c of ends) {
+      if (officeState.isHidden(c.id)) continue;
+      const to = at(c);
+      linkLines.push({ key: `${selectedId}-${c.id}`, x1: from.x, y1: from.y, x2: to.x, y2: to.y });
+    }
+  }
+
   return (
     <>
+      {linkLines.length > 0 && (
+        <svg
+          className="absolute inset-0 w-full h-full pointer-events-none"
+          data-testid="agent-links"
+        >
+          {linkLines.map(({ key, ...l }) => (
+            <line
+              key={key}
+              {...l}
+              stroke="var(--color-accent)"
+              strokeWidth={2}
+              strokeDasharray="6 4"
+            />
+          ))}
+        </svg>
+      )}
       {allIds.map((id) => {
         const ch = officeState.characters.get(id);
-        if (!ch) return null;
+        if (!ch || officeState.isHidden(id)) return null;
 
         const isSelected = selectedId === id;
         const isHovered = hoveredId === id;
@@ -161,6 +172,9 @@ export function ToolOverlay({
         // character regardless of label visibility. Mirrors the geometry the
         // canvas renderer used. The idle "Waiting for input" state speaks
         // through its label, not a bubble.
+        const needsApproval =
+          ch.bubbleType === 'permission' ||
+          (agentTools[id]?.some((t) => t.permissionWait && !t.done) ?? false);
         let bubbleNode = null;
         // Screen y of the bubble's top edge, when one shows: the label stacks above it.
         let bubbleTop: number | null = null;
@@ -190,7 +204,73 @@ export function ToolOverlay({
                 zIndex: OVERLAY_BUBBLE_Z_INDEX,
               }}
             >
-              <OverlayBubble cached={cachedBubble} dpr={dpr} />
+              <div className={needsApproval ? 'approval-beacon' : undefined}>
+                <OverlayBubble cached={cachedBubble} dpr={dpr} />
+              </div>
+            </div>
+          );
+        } else if (!needsApproval && activeCheckResult(id)) {
+          // A test/build just finished: a brief result chip over the head.
+          const result = activeCheckResult(id)!;
+          const resultSittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0;
+          bubbleTop =
+            project.toScreenY(ch.y + resultSittingOff - BUBBLE_VERTICAL_OFFSET_PX) -
+            APPROVAL_BEACON_SIZE_PX;
+          bubbleNode = (
+            <div
+              className={`absolute -translate-x-1/2 pointer-events-none pixel-panel px-6 text-sm whitespace-nowrap check-result ${
+                result.ok ? 'check-result-ok' : 'check-result-fail'
+              }`}
+              style={{
+                left: project.toScreenX(ch.x),
+                top: bubbleTop,
+                zIndex: OVERLAY_BUBBLE_Z_INDEX,
+              }}
+              data-testid="check-result"
+            >
+              {result.ok ? '✓ ' : '✗ '}
+              {checkText(result.check, result.ok)}
+            </div>
+          );
+        } else if (!needsApproval && officeState.isAsleep(id)) {
+          // Settled in the rest room after the sleep delay of reported idle.
+          const sleepSittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0;
+          bubbleTop =
+            project.toScreenY(ch.y + sleepSittingOff - BUBBLE_VERTICAL_OFFSET_PX) -
+            APPROVAL_BEACON_SIZE_PX;
+          bubbleNode = (
+            <div
+              className="absolute pointer-events-none sleep-zz font-bold"
+              style={{
+                left: project.toScreenX(ch.x),
+                top: bubbleTop,
+                zIndex: OVERLAY_BUBBLE_Z_INDEX,
+              }}
+              data-testid="sleep-zz"
+            >
+              z<span className="text-lg">Z</span>
+            </div>
+          );
+        } else if (needsApproval) {
+          // Approval flagged on a tool without a bubble: a beacon over the head.
+          const beaconSittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0;
+          bubbleTop =
+            project.toScreenY(ch.y + beaconSittingOff - BUBBLE_VERTICAL_OFFSET_PX) -
+            APPROVAL_BEACON_SIZE_PX;
+          bubbleNode = (
+            <div
+              className="absolute -translate-x-1/2 pointer-events-none approval-beacon flex items-center justify-center font-bold text-black"
+              style={{
+                left: project.toScreenX(ch.x),
+                top: bubbleTop,
+                width: APPROVAL_BEACON_SIZE_PX,
+                height: APPROVAL_BEACON_SIZE_PX,
+                background: 'var(--color-status-permission)',
+                zIndex: OVERLAY_BUBBLE_Z_INDEX,
+              }}
+              data-testid="approval-beacon"
+            >
+              !
             </div>
           );
         }
@@ -220,7 +300,7 @@ export function ToolOverlay({
         // its own so the sub's isn't covered.
         const isDone = ch.bubbleType === 'waiting' && !ch.waitingAwaitingInput;
         const givesWay = (isSub && !isSelected && !isHovered) || id === hoveredSubParentId;
-        if ((isDone && !isSelected && !isHovered) || givesWay) {
+        if ((isDone && !alwaysShowOverlay && !isSelected && !isHovered) || givesWay) {
           return (
             <Fragment key={id}>
               {bubbleNode}
@@ -244,7 +324,7 @@ export function ToolOverlay({
           activityText = WAITING_INPUT_ACTIVITY_TEXT;
         } else if (isSub) {
           if (subHasPermission) {
-            activityText = 'Needs approval';
+            activityText = NEEDS_APPROVAL_TEXT;
           } else {
             // Hover shows the subtask title; SELECTING the sub reveals its live
             // tool activity (watched sub-agents stream it via subagentToolStart).
@@ -262,6 +342,13 @@ export function ToolOverlay({
             ch.bubbleType,
             ch.waitingAwaitingInput ?? false,
           );
+          // The server's explicit lifecycle refines the tool text: silence is
+          // "no recent activity", and a guessed permission wait is a hint only.
+          const life = getAgentLifecycle(id);
+          activityText = lifecycleAwareText(activityText, agentTools[id], life?.lifecycle);
+          if (officeState.isAsleep(id)) activityText = 'Sleeping';
+          else if (life?.lifecycle === 'unknown') activityText = lifecycleText('unknown');
+          else if (life?.permissionSuspected) activityText += ' · approval?';
         }
 
         // Determine dot color
@@ -279,7 +366,11 @@ export function ToolOverlay({
         }
 
         // Team info
-        const teamRoleLabel = ch.isTeamLead ? 'LEAD' : ch.agentName || null;
+        // Team role (LEAD / teammate name) plus the viewer's role badge.
+        const viewerRole = isSub ? undefined : getAgentRole(id);
+        const teamRole = ch.isTeamLead ? 'LEAD' : ch.agentName || null;
+        const teamRoleLabel =
+          teamRole && viewerRole ? `${teamRole} · ${viewerRole}` : teamRole || viewerRole || null;
 
         // Context gauge. Every agent gets one — lead, teammate, adopted,
         // headless — as soon as the server reports its context (a cleared
@@ -307,7 +398,16 @@ export function ToolOverlay({
               data-testid="agent-overlay"
               data-agent-id={id}
             >
-              <div className="flex items-center border-border px-8 pt-2 pb-4 gap-5 pixel-panel whitespace-nowrap max-w-2xs">
+              <div
+                className={`flex items-center border-border px-8 pt-2 pb-4 gap-5 pixel-panel whitespace-nowrap max-w-2xs ${needsApproval ? 'approval-glow' : ''}`}
+              >
+                {ch.directoryName && !isSub && (
+                  <span
+                    aria-hidden="true"
+                    className="w-4 self-stretch shrink-0"
+                    style={{ background: projectAccent(ch.directoryName) }}
+                  />
+                )}
                 {dotColor && (
                   <span
                     className={`w-6 h-6 rounded-full shrink-0 ${isActive && !hasPermission && !hasWaiting ? 'pixel-pulse' : ''}`}
@@ -342,22 +442,6 @@ export function ToolOverlay({
                     </span>
                   )}
                 </div>
-                {isSelected && !isSub && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCloseAgent(id);
-                    }}
-                    title="Close agent"
-                    className="ml-2 shrink-0"
-                  >
-                    {/* The panel's padding favours the text (pb > pt) and the × fills
-                        rows 1–5 of its grid: 3px lower centres it on the label line. */}
-                    <PixelIcon name="close" className="translate-y-3" />
-                  </Button>
-                )}
               </div>
               {showContextGauge && (
                 <ContextBar

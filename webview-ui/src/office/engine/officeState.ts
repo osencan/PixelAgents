@@ -12,9 +12,14 @@ import {
   MAX_PET_ID_LENGTH,
   PET_HIT_HALF_WIDTH,
   PET_HIT_HEIGHT,
+  ROOM_MIN_SPACING_TILES,
+  ROOM_RESERVATION_RETRY_SEC,
   WAITING_BUBBLE_DURATION_SEC,
 } from '../../constants.js';
+import { isFilteredOut } from '../agentFilter.js';
+import { getAgentLifecycle } from '../agentLifecycles.js';
 import { contextUsedShare } from '../contextGauge.js';
+import { isAgentHidden } from '../hiddenAgents.js';
 import { getAnimationFrames, getCatalogEntry, getOnStateType } from '../layout/furnitureCatalog.js';
 import {
   createDefaultLayout,
@@ -25,9 +30,12 @@ import {
 } from '../layout/layoutSerializer.js';
 import { findPath, getWalkableTiles, isWalkable } from '../layout/tileMap.js';
 import { pairWorkstations } from '../layout/workstations.js';
+import { rememberedSeat, rememberSeat } from '../projectPrefs.js';
+import { areaLabelsFor, resolveRoomPolicy } from '../roomPolicy.js';
 import { getPetCount, getPetName } from '../sprites/petSpriteData.js';
 import { getLoadedCharacterCount } from '../sprites/spriteData.js';
 import type {
+  AreaPurpose,
   Character,
   FurnitureInstance,
   OfficeLayout,
@@ -87,6 +95,12 @@ export class OfficeState {
   pets: Pet[] = [];
   /** Accumulated time for furniture animation frame cycling */
   furnitureAnimTimer = 0;
+  /** Room tile each character currently holds (rest or waiting). */
+  private roomReservations = new Map<number, { purpose: AreaPurpose; col: number; row: number }>();
+  /** Earliest roomClock at which a failed reservation is retried. */
+  private roomRetryAt = new Map<number, number>();
+  /** Seconds of simulation, for reservation retries. */
+  private roomClock = 0;
   private _selectedAgentId: number | null = null;
   private readonly selectionListeners = new Set<(id: number | null) => void>();
   get selectedAgentId(): number | null {
@@ -372,6 +386,10 @@ export class OfficeState {
     }
     if (freeSeats.length === 0) return null;
 
+    // Stage 0 — the desk this project last used, when it is free.
+    const remembered = rememberedSeat(directoryName);
+    if (remembered && freeSeats.includes(remembered)) return remembered;
+
     const areaLabels = directoryName ? this.areaMappings[directoryName] : undefined;
 
     // Stage 1 — in-area seats for the Directory's mapped Area labels.
@@ -498,6 +516,7 @@ export class OfficeState {
       const seat = this.seats.get(seatId)!;
       seat.assigned = true;
       ch = createCharacter(id, palette, seatId, seat, repeat);
+      if (!anchorAt) rememberSeat(directoryName, seatId);
     } else {
       // No seats — teammates spawn beside their anchor, others at a random walkable tile
       let spawn = anchorAt ? this.closestFreeWalkableTile(anchorAt.col, anchorAt.row) : null;
@@ -637,9 +656,16 @@ export class OfficeState {
 
   /** Give an agent the server's look and seat (a reconnect's snapshot). The
    *  seat is taken only when it exists and no one else sits there. */
-  syncAgent(agentId: number, palette?: number, repeat?: number, seatId?: string): void {
+  syncAgent(
+    agentId: number,
+    palette?: number,
+    repeat?: number,
+    seatId?: string,
+    directoryName?: string,
+  ): void {
     const ch = this.characters.get(agentId);
     if (!ch) return;
+    ch.directoryName = directoryName;
     if (palette !== undefined) {
       ch.palette = palette;
       ch.repeat = repeat ?? 0;
@@ -674,6 +700,7 @@ export class OfficeState {
     if (!seat || seat.assigned) return;
     seat.assigned = true;
     ch.seatId = seatId;
+    if (!ch.isSubagent && ch.leadAgentId === undefined) rememberSeat(ch.directoryName, seatId);
     // Pathfind to new seat (unblock own seat tile for this query)
     const path = this.withOwnSeatUnblocked(ch, () =>
       findPath(ch.tileCol, ch.tileRow, seat.seatCol, seat.seatRow, this.tileMap, this.blockedTiles),
@@ -922,6 +949,16 @@ export class OfficeState {
       }
       this.rebuildFurnitureInstances();
     }
+  }
+
+  /** Follow the server's explicit lifecycle into idle: a session that is
+   *  first seen already idle gets no agentStatus 'waiting', and would otherwise
+   *  keep the active state every character starts with (sitting at its desk
+   *  instead of going to the rest room until a reload). */
+  applyLifecycle(id: number, lifecycle: string): void {
+    const ch = this.characters.get(id);
+    if (!ch?.isActive) return;
+    if (lifecycle === 'idle' || lifecycle === 'waiting_input') this.setAgentActive(id, false);
   }
 
   /** Start an agent at rest: not working, and seated for a usual rest when it has a chair
@@ -1209,6 +1246,11 @@ export class OfficeState {
       this.greeter = null;
     }
 
+    this.roomClock += dt;
+    const policy = resolveRoomPolicy(this.layout);
+    const restTiles = this.purposeTiles('rest');
+    const waitingTiles = policy.waitingMode === 'area' ? this.purposeTiles('waiting') : [];
+    const planningTiles = this.purposeTiles('planning');
     const toDelete: number[] = [];
     for (const ch of this.characters.values()) {
       tickBlink(ch, dt, ch.state === CharacterState.TYPE);
@@ -1218,7 +1260,7 @@ export class OfficeState {
         continue; // skip normal FSM while the effect is (or just was) active
       }
 
-      if (ch.isSubagent) {
+      if (ch.isSubagent && (ch.isActive || restTiles.length === 0)) {
         const lead = ch.parentAgentId !== null ? this.characters.get(ch.parentAgentId) : undefined;
         // Helpers gather around the lead's seat, not the lead: an idle lead
         // wanders, and its helpers should not trail it around the office.
@@ -1233,9 +1275,19 @@ export class OfficeState {
           this.blockedTiles,
         );
       } else {
+        const room = this.roomDestination(ch, restTiles, waitingTiles, planningTiles);
         // Temporarily unblock own seat so character can pathfind to it
         this.withOwnSeatUnblocked(ch, () =>
-          updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles),
+          updateCharacter(
+            ch,
+            dt,
+            this.walkableTiles,
+            this.seats,
+            this.tileMap,
+            this.blockedTiles,
+            room.tiles,
+            room.whileActive,
+          ),
         );
       }
 
@@ -1247,6 +1299,9 @@ export class OfficeState {
           ch.bubbleTimer = 0;
         }
       }
+    }
+    for (const id of this.roomReservations.keys()) {
+      if (!this.characters.has(id)) this.roomReservations.delete(id);
     }
     // Remove characters that finished despawn
     for (const id of toDelete) {
@@ -1297,6 +1352,129 @@ export class OfficeState {
     return chars;
   }
 
+  // ── Room purposes ─────────────────────────────────────────
+
+  /** Walkable tiles of the areas with this purpose, minus seat tiles (a desk's
+   *  chair is its owner's, even in a rest room). */
+  private purposeTiles(purpose: AreaPurpose): Array<{ col: number; row: number }> {
+    const labels = areaLabelsFor(this.layout, purpose);
+    if (labels.size === 0) return [];
+    const seatTiles = new Set([...this.seats.values()].map((s) => `${s.seatCol},${s.seatRow}`));
+    return this.walkableTiles.filter(
+      ({ col, row }) =>
+        labels.has(this.layout.areaTiles?.[row * this.layout.cols + col] ?? '') &&
+        !seatTiles.has(`${col},${row}`),
+    );
+  }
+
+  /**
+   * Where a character's room policy sends it, as the one tile it has reserved:
+   * idle agents to the rest room; a confirmed permission wait to the waiting
+   * room (when enabled). Each character holds its own reachable tile, so none
+   * share one; a full or unreachable room leaves it at its desk.
+   */
+  private roomDestination(
+    ch: Character,
+    restTiles: Array<{ col: number; row: number }>,
+    waitingTiles: Array<{ col: number; row: number }>,
+    planningTiles: Array<{ col: number; row: number }> = [],
+  ): { tiles: Array<{ col: number; row: number }>; whileActive: boolean } {
+    const none = { tiles: [], whileActive: false };
+    const lifecycle =
+      ch.isActive && !ch.isSubagent ? getAgentLifecycle(ch.id)?.lifecycle : undefined;
+    // A reported permission wait wins over planning; planning only when Claude
+    // reports plan mode (lifecycle 'planning').
+    const purpose: AreaPurpose | null =
+      lifecycle === 'waiting_permission' && waitingTiles.length > 0
+        ? 'waiting'
+        : lifecycle === 'planning' && planningTiles.length > 0
+          ? 'planning'
+          : !ch.isActive && restTiles.length > 0
+            ? 'rest'
+            : null;
+    if (!purpose) {
+      this.roomReservations.delete(ch.id);
+      return none;
+    }
+    const tiles =
+      purpose === 'rest' ? restTiles : purpose === 'waiting' ? waitingTiles : planningTiles;
+    const whileActive = purpose !== 'rest';
+    const held = this.roomReservations.get(ch.id);
+    if (held?.purpose === purpose && tiles.some((t) => t.col === held.col && t.row === held.row)) {
+      return { tiles: [{ col: held.col, row: held.row }], whileActive };
+    }
+    this.roomReservations.delete(ch.id);
+    if ((this.roomRetryAt.get(ch.id) ?? 0) > this.roomClock) return none;
+    const taken = [...this.roomReservations.values()];
+    // Keep a little distance: first look for a tile at least ROOM_MIN_SPACING_TILES
+    // from everyone already there; only a crowded room packs agents side by side.
+    for (const minSpacing of [ROOM_MIN_SPACING_TILES, 1]) {
+      for (let i = 0; i < tiles.length; i++) {
+        // Spread characters across the room rather than queueing on one tile.
+        const t = tiles[(Math.abs(ch.id) + i) % tiles.length];
+        if (
+          taken.some((r) => Math.max(Math.abs(r.col - t.col), Math.abs(r.row - t.row)) < minSpacing)
+        ) {
+          continue;
+        }
+        const here = ch.tileCol === t.col && ch.tileRow === t.row;
+        if (
+          !here &&
+          findPath(ch.tileCol, ch.tileRow, t.col, t.row, this.tileMap, this.blockedTiles).length ===
+            0
+        ) {
+          continue;
+        }
+        this.roomReservations.set(ch.id, { purpose, col: t.col, row: t.row });
+        this.roomRetryAt.delete(ch.id);
+        return { tiles: [t], whileActive };
+      }
+    }
+    this.roomRetryAt.set(ch.id, this.roomClock + ROOM_RESERVATION_RETRY_SEC);
+    return none;
+  }
+
+  /** The room tile a character holds, if any (for overlays and tests). */
+  roomReservation(id: number): { purpose: AreaPurpose; col: number; row: number } | undefined {
+    return this.roomReservations.get(id);
+  }
+
+  /** Asleep: settled on its rest-room tile after the policy's sleep delay of
+   *  REPORTED idle (an inferred idle never puts anyone to sleep). */
+  isAsleep(id: number, nowMs = Date.now()): boolean {
+    const { sleepAfterMin } = resolveRoomPolicy(this.layout);
+    if (sleepAfterMin <= 0) return false;
+    const ch = this.characters.get(id);
+    const held = this.roomReservations.get(id);
+    if (!ch || ch.isActive || held?.purpose !== 'rest') return false;
+    if (ch.tileCol !== held.col || ch.tileRow !== held.row || ch.path.length > 0) return false;
+    const life = getAgentLifecycle(id);
+    if (!life?.observed || (life.lifecycle !== 'idle' && life.lifecycle !== 'waiting_input')) {
+      return false;
+    }
+    return nowMs - life.since >= sleepAfterMin * 60_000;
+  }
+
+  /** Not shown to this viewer: hidden (the agent or, for subagents and
+   *  teammates, its parent) or left out by the project/provider filter. Such
+   *  characters keep simulating and keep their seats; they are only left out
+   *  of drawing, labels and hit-testing. */
+  isHidden(id: number): boolean {
+    if (isAgentHidden(id)) return true;
+    const ch = this.characters.get(id);
+    const parentId = ch?.parentAgentId ?? ch?.leadAgentId;
+    const hasParent = parentId !== null && parentId !== undefined;
+    if (hasParent && isAgentHidden(parentId)) return true;
+    // The viewer's project/provider filter: subagents follow their parent's label.
+    const owner = hasParent ? (this.characters.get(parentId) ?? ch) : ch;
+    return owner !== undefined && isFilteredOut(owner.directoryName);
+  }
+
+  /** What the office draws: getCharacters() minus the hidden agents. */
+  getVisibleCharacters(): Character[] {
+    return this.getCharacters().filter((ch) => !this.isHidden(ch.id));
+  }
+
   /** Get character at pixel position (for hit testing). Returns id or null.
    *  Agents only: clicks pass straight through the consent greeter, which is
    *  a prop, not something to select or follow. */
@@ -1305,6 +1483,7 @@ export class OfficeState {
     for (const ch of chars) {
       // Skip characters that are despawning
       if (ch.matrixEffect === 'despawn') continue;
+      if (this.isHidden(ch.id)) continue;
       // Character sprite is 16x24, anchored bottom-center
       // Apply sitting offset to match visual position
       const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;

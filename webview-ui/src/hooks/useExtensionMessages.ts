@@ -1,12 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Directory, HooksConsentRequest } from '../../../core/src/messages.js';
+import type { AgentLifecycleState } from '../../../core/src/messages.js';
 import { handleCastMessage } from '../characters/castMessages.js';
 import { castStore } from '../characters/castStore.js';
 import { startOfficeSync } from '../characters/officeSprites.js';
 import { cardOrderOf } from '../components/cardBar.js';
 import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
+import type { AgentHistoryEntry } from '../office/agentHistory.js';
+import { appendAgentHistory, clearAgentHistory, setAgentHistory } from '../office/agentHistory.js';
+import {
+  clearAgentLifecycle,
+  getAgentLifecycle,
+  setAgentLifecycle,
+} from '../office/agentLifecycles.js';
+import { moveAgentRoleKey } from '../office/agentRoles.js';
+import { clearCheckResult, showCheckResult } from '../office/checkResults.js';
 import { clearAgentContextUsed, setAgentContextUsed } from '../office/contextGauge.js';
+import type { ControlAccess } from '../office/controlAccess.js';
+import { setApprovalOptIns, setControlAccess, setPinSet } from '../office/controlAccess.js';
 import type { ExistingAgentMeta, PendingAgent } from '../office/engine/existingAgents.js';
 import {
   reconcileExistingAgents,
@@ -16,8 +28,20 @@ import {
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setGhostHeadlessAgents as setRendererGhostHeadlessAgents } from '../office/engine/renderer.js';
 import { setFloorSprites } from '../office/floorTiles.js';
+import { clearAgentKey, isReusedId, moveAgentKey, setAgentKey } from '../office/hiddenAgents.js';
 import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js';
 import { migrateLayoutColors } from '../office/layout/layoutSerializer.js';
+import {
+  dismissAgentToasts,
+  lifecycleNotice,
+  NOTICE_TEXT,
+  pushToast,
+} from '../office/notifications.js';
+import {
+  clearAgentPermissions,
+  clearPendingPermission,
+  setPendingPermission,
+} from '../office/permissionRequests.js';
 import { setCarpetSprites } from '../office/sprites/carpetTiles.js';
 import { setPetTemplates } from '../office/sprites/petSpriteData.js';
 import {
@@ -285,6 +309,12 @@ export function useExtensionMessages(
     const closeAgent = (os: OfficeState, id: number) => {
       setAgents((prev) => prev.filter((a) => a !== id));
       setSelectedAgent((prev) => (prev === id ? null : prev));
+      clearAgentKey(id);
+      clearAgentLifecycle(id);
+      clearAgentHistory(id);
+      clearCheckResult(id);
+      clearAgentPermissions(id);
+      for (const kind of ['approval', 'finished', 'failed'] as const) dismissAgentToasts(id, kind);
       // Drop the drawer tab too. terminalSessionClosed normally does this, but
       // an agent can be removed without its PTY ever reporting an exit (e.g.
       // stale cleanup), and a tab for a gone agent would attach to nothing.
@@ -419,6 +449,8 @@ export function useExtensionMessages(
         const teammateName = msg.teammateName as string | undefined;
         const teammateParentId = msg.parentAgentId as number | undefined;
         const teamName = msg.teamName as string | undefined;
+        if (isReusedId(id, msg.agentKey as string | undefined)) closeAgent(os, id);
+        setAgentKey(id, msg.agentKey as string | undefined);
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]));
         // Don't auto-select teammates (keep focus on lead)
         if (!isTeammate) {
@@ -464,6 +496,47 @@ export function useExtensionMessages(
           }
         }
         saveAgentSeats(os);
+      } else if (msg.type === 'agentDirectoryChanged') {
+        const id = msg.id as number;
+        const name = msg.directoryName as string;
+        const ch = os.characters.get(id);
+        if (ch) {
+          ch.directoryName = name;
+          ch.projectWorktree = msg.worktree as string | undefined;
+        }
+        for (const pending of pendingAgents) if (pending.id === id) pending.directoryName = name;
+        noteDirectoryName(name);
+      } else if (msg.type === 'controlAccess') {
+        setControlAccess({
+          control: msg.control === true,
+          local: msg.local === true,
+          pinSet: msg.pinSet === true,
+          ticket: msg.ticket as string | undefined,
+          error: msg.error as ControlAccess['error'],
+          lockedUntil: msg.lockedUntil as number | undefined,
+        });
+      } else if (msg.type === 'controlPinUpdated') {
+        setPinSet(msg.pinSet === true);
+      } else if (msg.type === 'agentPermissionPending') {
+        setPendingPermission({
+          requestId: msg.requestId as string,
+          agentId: msg.id as number,
+          toolName: msg.toolName as string,
+          status: msg.status as string,
+          detail: msg.detail as string | undefined,
+          complete: msg.complete === true,
+          expiresAt: msg.expiresAt as number,
+        });
+      } else if (msg.type === 'agentPermissionResolved') {
+        clearPendingPermission(msg.requestId as string);
+      } else if (msg.type === 'approvalOptIns') {
+        setApprovalOptIns(msg.agentIds as number[]);
+      } else if (msg.type === 'agentKeyChanged') {
+        // Same character, new session (/clear, resume): its hide and role stay.
+        const previousKey = msg.previousKey as string;
+        const key = msg.agentKey as string;
+        moveAgentRoleKey(previousKey, key);
+        moveAgentKey(msg.id as number, previousKey, key);
       } else if (msg.type === 'agentClosed') {
         closeAgent(os, msg.id as number);
       } else if (msg.type === 'existingAgents') {
@@ -475,8 +548,14 @@ export function useExtensionMessages(
         const meta = (msg.agentMeta || {}) as Record<number, ExistingAgentMeta>;
         const directoryNames = (msg.directoryNames || {}) as Record<number, string>;
         const externalAgents = (msg.externalAgents || {}) as Record<number, boolean>;
+        const agentKeys = (msg.agentKeys || {}) as Record<number, string>;
+        const worktrees = (msg.worktrees || {}) as Record<number, string>;
         const headlessAgents: Record<number, boolean> = {};
         for (const id of incoming) {
+          // A restarted server can reuse a numeric id for another session:
+          // that is a different agent, never a rename of the old character.
+          if (isReusedId(id, agentKeys[id])) closeAgent(os, id);
+          setAgentKey(id, agentKeys[id]);
           noteDirectoryName(directoryNames[id]);
           if (isHeadlessAgent(externalAgents[id])) headlessAgents[id] = true;
         }
@@ -496,6 +575,10 @@ export function useExtensionMessages(
           )
         ) {
           saveAgentSeats(os);
+        }
+        for (const id of incoming) {
+          const ch = os.characters.get(id);
+          if (ch) ch.projectWorktree = worktrees[id];
         }
         setAgents((prev) => {
           const ids = new Set(prev);
@@ -620,6 +703,69 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentSelected') {
         const id = msg.id as number;
         setSelectedAgent(id);
+      } else if (msg.type === 'agentLifecycle') {
+        const id = msg.id as number;
+        const next = {
+          lifecycle: msg.lifecycle as AgentLifecycleState,
+          observed: msg.observed === true,
+          permissionSuspected: msg.permissionSuspected === true,
+          since: msg.since as number,
+        };
+        const prev = getAgentLifecycle(id);
+        setAgentLifecycle(id, next);
+        os.applyLifecycle(id, next.lifecycle);
+        // An answered approval request: its notice has done its job.
+        if (prev?.lifecycle === 'waiting_permission' && next.lifecycle !== 'waiting_permission') {
+          dismissAgentToasts(id, 'approval');
+        }
+        // A reconnect replay restates the current state: no history, no notice.
+        if (msg.replayed !== true && prev?.lifecycle !== next.lifecycle) {
+          const project = os.characters.get(id)?.directoryName;
+          appendAgentHistory(id, {
+            kind: 'state',
+            lifecycle: next.lifecycle,
+            observed: next.observed,
+            at: next.since,
+            project,
+          });
+          const kind = lifecycleNotice(prev, next);
+          // A request for approval needs action, so it is announced even for
+          // an agent this viewer hid or filtered out; the rest stay quiet.
+          const hiddenHere = os.isHidden(id);
+          if (kind && (!hiddenHere || kind === 'approval')) {
+            const name = project ?? `Agent ${id}`;
+            pushToast({
+              agentId: id,
+              kind,
+              text: `${name}${hiddenHere ? ' (hidden)' : ''} ${NOTICE_TEXT[kind]}`,
+            });
+          }
+        }
+      } else if (msg.type === 'agentCheckResult') {
+        const id = msg.id as number;
+        const check = msg.check === 'build' ? 'build' : 'test';
+        const ok = msg.ok === true;
+        showCheckResult(id, check, ok);
+        appendAgentHistory(id, {
+          kind: 'check',
+          check,
+          ok,
+          at: msg.at as number,
+          project: os.characters.get(id)?.directoryName,
+        });
+      } else if (msg.type === 'agentHistory') {
+        setAgentHistory(msg.id as number, msg.entries as AgentHistoryEntry[]);
+      } else if (msg.type === 'agentToolFailed') {
+        const id = msg.id as number;
+        const project = os.characters.get(id)?.directoryName;
+        appendAgentHistory(id, { kind: 'tool_failed', at: msg.at as number, project });
+        if (!os.isHidden(id)) {
+          pushToast({
+            agentId: id,
+            kind: 'failed',
+            text: `${project ?? `Agent ${id}`} ${NOTICE_TEXT.failed}`,
+          });
+        }
       } else if (msg.type === 'agentStatus') {
         const id = msg.id as number;
         const status = msg.status as string;

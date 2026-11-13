@@ -11,6 +11,7 @@
 
 import { TERMINAL_WS_PREFIX } from '../../../core/src/constants.js';
 import { parseServerFrame } from '../../../core/src/terminalFrames.js';
+import { getControlAccess } from '../office/controlAccess.js';
 import { reconnectDelayMs } from '../transport/reconnectBackoff.js';
 import { serverToken } from '../transport/serverToken.js';
 
@@ -70,9 +71,11 @@ export class TerminalConnection {
     // The token rides the handshake query exactly as it does on /ws (the
     // server's request log redacts it), so both sockets pass the same gate.
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // Off this machine, a terminal also needs the ticket from the control PIN unlock.
+    const { ticket } = getControlAccess();
     const url = `${protocol}//${window.location.host}${TERMINAL_WS_PREFIX}/${String(
       this.agentId,
-    )}?token=${encodeURIComponent(serverToken)}`;
+    )}?token=${encodeURIComponent(serverToken)}${ticket ? `&ticket=${encodeURIComponent(ticket)}` : ''}`;
     const socket = new WebSocket(url);
     this.socket = socket;
 

@@ -23,7 +23,7 @@ export type AgentEvent =
        *  sub-agent characters for teammate spawns. */
       runInBackground?: boolean;
     }
-  | { kind: 'toolEnd'; toolId: string }
+  | { kind: 'toolEnd'; toolId: string; failed?: boolean }
   | {
       kind: 'turnEnd';
       /** True when the turn ended because the agent went idle waiting on the

@@ -176,9 +176,20 @@ function normalizeHookEvent(
       };
     }
 
-    case 'PostToolUse':
+    case 'PostToolUse': {
+      // A structured error in the response is a failure too (exit code /
+      // is_error); nothing else of the response is read.
+      const response = raw.tool_response as Record<string, unknown> | undefined;
+      const exitCode = response?.exit_code ?? response?.exitCode;
+      const failed =
+        response?.is_error === true || (typeof exitCode === 'number' && exitCode !== 0);
+      return {
+        sessionId,
+        event: { kind: 'toolEnd', toolId: 'current', ...(failed ? { failed: true } : {}) },
+      };
+    }
     case 'PostToolUseFailure':
-      return { sessionId, event: { kind: 'toolEnd', toolId: 'current' } };
+      return { sessionId, event: { kind: 'toolEnd', toolId: 'current', failed: true } };
 
     case 'Stop':
       return { sessionId, event: { kind: 'turnEnd' } };

@@ -3,6 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { toMajorMinor } from './changelogData.js';
 import { CharactersView } from './characters/ui/CharactersView.js';
 import { AgentCardBar } from './components/AgentCardBar.js';
+import { AgentDetailPanel } from './components/AgentDetailPanel.js';
+import { AgentFilter } from './components/AgentFilter.js';
+import { AgentToasts } from './components/AgentToasts.js';
+import { AmbientTint } from './components/AmbientTint.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChangelogModal } from './components/ChangelogModal.js';
 import { ConnectionIndicator } from './components/ConnectionIndicator.js';
@@ -19,7 +23,11 @@ import { Tooltip } from './components/Tooltip.js';
 import { Modal } from './components/ui/Modal.js';
 import { VersionIndicator } from './components/VersionIndicator.js';
 import { MobileZoomLevel, ZoomControls } from './components/ZoomControls.js';
-import { CONVERSATION_SIDEBAR_WIDTH_PX, OFFICE_CANVAS_TEST_ID } from './constants.js';
+import {
+  CONVERSATION_SIDEBAR_WIDTH_PX,
+  OFFICE_CANVAS_TEST_ID,
+  TOOLBAR_ROW_HEIGHT_CLASS,
+} from './constants.js';
 import type { ConversationSearchScope } from './conversations/ConversationList.js';
 import { ConversationSearch } from './conversations/ConversationSearch.js';
 import { ConversationSidebar } from './conversations/ConversationSidebar.js';
@@ -39,15 +47,18 @@ import { MobileShell } from './mobile/MobileShell.js';
 import { useMobileMenu } from './mobile/useMobileMenu.js';
 import { useMobileShell } from './mobile/useMobileShell.js';
 import { MusicPlayer } from './music/MusicPlayer.js';
+import { isFilteredOut, useAgentFilterVersion } from './office/agentFilter.js';
 import { OfficeCanvas } from './office/components/OfficeCanvas.js';
 import { ToolOverlay } from './office/components/ToolOverlay.js';
 import { EditorState } from './office/editor/editorState.js';
 import { EditorToolbar } from './office/editor/EditorToolbar.js';
 import { OfficeState } from './office/engine/officeState.js';
+import { isAgentHidden, setAgentHidden } from './office/hiddenAgents.js';
 import { exportLayoutToFile } from './office/layout/exportLayout.js';
 import { isRotatable } from './office/layout/furnitureCatalog.js';
 import { migrateLayoutColors } from './office/layout/layoutSerializer.js';
 import { overlayProjection } from './office/projection.js';
+import { resolveRoomPolicy } from './office/roomPolicy.js';
 import { getPetCount } from './office/sprites/petSpriteData.js';
 import { EditTool, type OfficeLayout, TILE_SIZE } from './office/types.js';
 import { isBrowserRuntime, isE2E } from './runtime.js';
@@ -191,6 +202,15 @@ function App() {
 
   const { launch: launchIntoDirectory, resume: resumeAndFocus } = useLaunchActions(
     terminalDrawer.expectLaunch,
+  );
+  // A conversation list's "New agent": the Directory as the drawer knows it
+  // (its default characters), else just its path; the server checks it is listed.
+  const launchFromConversations = useCallback(
+    (directory: { name: string; path: string }) =>
+      launchIntoDirectory(
+        directories.find((d) => d.path === directory.path) ?? { ...directory, source: 'user' },
+      ),
+    [directories, launchIntoDirectory],
   );
   const mobileShell = useMobileShell({
     getOfficeState,
@@ -373,8 +393,29 @@ function App() {
     editor.handleToggleEditMode,
   );
 
+  // Removes the agent (kills a launched one; hides an observed session).
   const handleCloseAgent = useCallback((id: number) => {
     transport.send({ type: 'closeAgent', id });
+  }, []);
+  // Card ×: an agent with a terminal we launched is closed (its process
+  // killed), after a confirm; an observed session is only hidden/unhidden in
+  // this browser — it keeps its faded card, never leaves the stack.
+  const confirmCloseAgent = useCallback(
+    (id: number) => {
+      if (!terminalAgentIds.includes(id)) {
+        setAgentHidden(id, !isAgentHidden(id));
+        return;
+      }
+      const name = getOfficeState().characters.get(id)?.directoryName ?? `agent ${id}`;
+      if (window.confirm(`Close ${name}? This ends its terminal session.`)) handleCloseAgent(id);
+    },
+    [handleCloseAgent, terminalAgentIds],
+  );
+  const setProjectLabel = useCallback((id: number, label: string) => {
+    transport.send({ type: 'setProjectLabel', id, label });
+  }, []);
+  const closeDetailPanel = useCallback(() => {
+    getOfficeState().selectedAgentId = null;
   }, []);
 
   const { reveal: revealTerminal } = terminalDrawer;
@@ -528,9 +569,45 @@ function App() {
       return false;
     })();
 
+  // Re-render when this viewer changes the project/provider filter.
+  useAgentFilterVersion();
+
   if (!layoutReady) {
     return <LoadingScene />;
   }
+
+  // The viewer's filter: filtered agents leave the card stack (hidden ones stay, faded).
+  const shownCardAgents = cardAgents.filter(
+    (id) => !isFilteredOut(officeState.characters.get(id)?.directoryName),
+  );
+  const filteredCount = cardAgents.length - shownCardAgents.length;
+
+  const agentFilter =
+    (agents.length > 0 || !officeReadOnly) && !editor.isEditMode ? (
+      <AgentFilter
+        labels={cardAgents.map((id) => officeState.characters.get(id)?.directoryName)}
+        filteredCount={filteredCount}
+        mobile={isMobile}
+        inToolbar={!isMobile && !officeReadOnly}
+        tokened={!officeReadOnly}
+        buttonClassName={!isMobile && !officeReadOnly ? TOOLBAR_ROW_HEIGHT_CLASS : ''}
+      />
+    ) : null;
+
+  const detailPanel =
+    focusedAgentId !== null && !isDebugMode && !editor.isEditMode ? (
+      <AgentDetailPanel
+        agentId={focusedAgentId}
+        officeState={officeState}
+        agentTools={agentTools}
+        subagentTools={subagentTools}
+        subagentCharacters={subagentCharacters}
+        mobile={isMobile}
+        onClose={closeDetailPanel}
+        onSetProjectLabel={officeReadOnly ? undefined : setProjectLabel}
+        ownedByOffice={terminalAgentIds.includes(focusedAgentId)}
+      />
+    ) : null;
 
   // The office region is shared by both shells: desktop mounts it as the
   // flexing left half of the split view (the terminal panel docks beside it);
@@ -575,6 +652,12 @@ function App() {
             />
           )}
 
+          <AgentToasts officeState={officeState} />
+
+          {/* Without the bottom toolbar (phone, read-only), the filter floats;
+              otherwise it sits in the toolbar beside Settings. */}
+          {(isMobile || officeReadOnly) && agentFilter}
+
           {/* The provider's plan usage, top-left (Settings → Usage Bars). */}
           {usage.status?.installed && (
             <UsageBars
@@ -583,6 +666,9 @@ function App() {
               mobile={isMobile}
             />
           )}
+
+          {/* Day/night tint (decorative, per-browser switch in the Filter panel) */}
+          <AmbientTint />
 
           {/* Vignette overlay */}
           <div
@@ -651,6 +737,9 @@ function App() {
                   onRenameArea={editor.handleRenameArea}
                   onAreaColorChange={editor.handleAreaColorChange}
                   onAreaMappingChange={handleAreaMappingChange}
+                  roomPolicy={resolveRoomPolicy(officeState.getLayout())}
+                  onAreaPurposeChange={editor.handleAreaPurposeChange}
+                  onRoomPolicyChange={editor.handleRoomPolicyChange}
                 />
               );
             })()}
@@ -669,10 +758,10 @@ function App() {
               containerRef={containerRef}
               zoom={editor.zoom}
               panRef={editor.panRef}
-              onCloseAgent={handleCloseAgent}
               alwaysShowOverlay={alwaysShowOverlay}
             />
           </div>
+          {isMobile && detailPanel}
         </>
       ) : (
         <DebugView
@@ -732,6 +821,7 @@ function App() {
           // Where there is a conversation sidebar, Settings lives only at its
           // foot (shut, it is one click away), never also in the toolbar.
           showSettings={!hasSidebar}
+          trailing={agentFilter}
           isCharactersOpen={isCharactersOpen}
           onOpenCharacters={openCharacters}
           directories={directories}
@@ -804,7 +894,7 @@ function App() {
           office={officeRegion}
           shell={mobileShell}
           drawer={terminalDrawer}
-          agentIds={cardAgents}
+          agentIds={shownCardAgents}
           terminalAgentIds={terminalAgentIds}
           focusedAgentId={focusedAgentId}
           terminalAvailable={terminalAvailable}
@@ -812,7 +902,7 @@ function App() {
           directories={directories}
           onAddDirectory={directoryEditor.add}
           onEditDirectory={directoryEditor.edit}
-          onCloseAgent={handleCloseAgent}
+          onCloseAgent={confirmCloseAgent}
           onReorder={officeReadOnly ? undefined : saveCardOrder}
           onOpenCharacters={officeReadOnly ? undefined : openCharacters}
           keyboardOpen={keyboard.keyboardOpen}
@@ -829,6 +919,7 @@ function App() {
               isSettingsOpen={isSettingsOpen}
               onToggleSettings={() => setIsSettingsOpen((v) => !v)}
               onSearch={setConversationSearch}
+              onLaunch={launchFromConversations}
             />
           )}
 
@@ -841,13 +932,13 @@ function App() {
               character. */}
           {!(isDebugMode && !terminalAvailable) && (
             <AgentCardBar
-              agentIds={cardAgents}
+              agentIds={shownCardAgents}
               activeAgentId={terminalAvailable ? terminalDrawer.shownAgentId : null}
               focusedAgentId={focusedAgentId}
               getAppearance={terminalDrawer.getAppearance}
               statusFor={terminalDrawer.statusFor}
               onSelect={handleCardSelect}
-              onClose={handleCloseAgent}
+              onClose={confirmCloseAgent}
               onReorder={officeReadOnly ? undefined : saveCardOrder}
               trailing={
                 terminalAvailable && terminalAgentIds.length > 0 ? (
@@ -856,6 +947,9 @@ function App() {
               }
             />
           )}
+
+          {/* The selected agent's details, docked right of the office. */}
+          {detailPanel}
 
           {/* Standalone with a terminal: terminalAvailable is only ever true when
               the server reports a working PTY to a tokened session, which VS
@@ -941,6 +1035,7 @@ function App() {
           onOpenAgent={mobileShell.openAgent}
           statusFor={terminalDrawer.statusFor}
           onSearch={setConversationSearch}
+          onLaunch={launchFromConversations}
         />
       )}
 
