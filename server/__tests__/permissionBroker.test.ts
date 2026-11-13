@@ -136,7 +136,12 @@ describe('PermissionBroker', () => {
     expect(permissionDetail('Bash', { command: 'ls \u{E0041}' }).detail).toBe('ls \\u{e0041}');
     expect(permissionDetail('Bash', { command: 'lsㅤ-la' }).complete).toBe(false);
     expect(permissionDetail('Bash', { command: 'echo ' }).complete).toBe(false);
-    expect(permissionDetail('Bash', { command: 'echo café ünïcode' }).complete).toBe(true);
+    expect(permissionDetail('Bash', { command: 'echo café ünïcode çşğ' }).complete).toBe(true);
+    // Allowlist: combining marks, odd spaces and blank symbols are not shown as-is.
+    expect(permissionDetail('Bash', { command: 'rm x́' }).detail).toBe('rm x\\u0301');
+    expect(permissionDetail('Bash', { command: 'ls -la' }).complete).toBe(false);
+    expect(permissionDetail('Bash', { command: 'ls⠀' }).complete).toBe(false);
+    expect(permissionDetail('Bash', { command: 'ls \uD800' }).complete).toBe(false);
     expect(permissionDetail('Bash', { command: 'ls', description: 'List files' }).detail).toBe(
       'ls',
     );

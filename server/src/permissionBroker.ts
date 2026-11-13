@@ -36,12 +36,11 @@ const SESSION_MOVED_EVENTS: ReadonlySet<string> = new Set([
 /** Longest full request shown for review; longer ones can't be approved here. */
 export const PERMISSION_DETAIL_MAX_CHARS = 8192;
 
-/** Characters that render as nothing, reorder text or vary by font: control
- *  and format characters (bidi, zero-width), private-use and unassigned code
- *  points, line/paragraph separators, blank fillers and variation selectors.
- *  Tab and newline are allowed. */
-const HIDDEN_SOURCE =
-  '(?![\\t\\n])[\\p{Cc}\\p{Cf}\\p{Co}\\p{Cn}\\p{Zl}\\p{Zp}\\u034F\\u115F\\u1160\\u3164\\uFE00-\\uFE0F\\u{E0100}-\\u{E01EF}]';
+/** Anything but letters, digits, punctuation, symbols, a plain space, tab and
+ *  newline (an allowlist: combining marks, other spaces, control, format,
+ *  private-use, unassigned and lone surrogate code points all count), plus
+ *  letters and symbols that draw as blank. */
+const HIDDEN_SOURCE = '[^\\p{L}\\p{N}\\p{P}\\p{S} \\t\\n]|[\\u115F\\u1160\\u3164\\uFFA0\\u2800]';
 const HIDDEN_CHARS = new RegExp(HIDDEN_SOURCE, 'u');
 const HIDDEN_CHARS_ALL = new RegExp(HIDDEN_SOURCE, 'gu');
 
