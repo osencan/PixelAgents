@@ -94,7 +94,22 @@ export function isLocalAddress(address: string | undefined): boolean {
   return false;
 }
 
-const FORWARDING_HEADERS = ['forwarded', 'x-forwarded-for', 'x-real-ip'];
+/** Headers a relay may set to name the real client or hop. Any of them means
+ *  "not someone at this machine", so the PIN is needed. */
+const FORWARDING_HEADERS = [
+  'forwarded',
+  'x-forwarded-for',
+  'x-forwarded-host',
+  'x-forwarded-proto',
+  'x-real-ip',
+  'x-client-ip',
+  'true-client-ip',
+  'cf-connecting-ip',
+  'fastly-client-ip',
+  'x-cluster-client-ip',
+  'via',
+  'tailscale-user-login',
+];
 
 function hostnameOf(host: string | undefined): string | undefined {
   if (!host) return undefined;

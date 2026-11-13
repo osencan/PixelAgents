@@ -12,8 +12,13 @@ import type {
   ReloadAssetsSideEffect,
   SetHooksEnabledSideEffect,
 } from './clientMessageHandler.js';
-import { handleClientMessage, terminalAvailabilityMessage } from './clientMessageHandler.js';
 import {
+  CONTROL_MESSAGE_TYPES,
+  handleClientMessage,
+  terminalAvailabilityMessage,
+} from './clientMessageHandler.js';
+import {
+  CONTROL_EXPIRY_CHECK_MS,
   HOOK_API_PREFIX,
   MAX_HOOK_BODY_SIZE,
   PERMISSION_DECISION_PATH,
@@ -27,10 +32,12 @@ import {
   isLocalRequest,
   isPinSet,
   issueTicket,
+  isTicketValid,
   revokeTicket,
   setControlSocket,
   touchTicket,
   verifyControlPin,
+  watchTicket,
 } from './controlPolicy.js';
 import { permissionBrokerFor } from './permissionBroker.js';
 import { PERMISSION_NONCE_HEADER, signDecision } from './permissionSignature.js';
@@ -353,20 +360,36 @@ function registerWebSocketRoute(
       });
     };
     const clientKind = local ? 'local' : 'remote';
-    /** A remote unlock is valid while its ticket is (sliding idle expiry). */
-    const hasControl = () => {
-      if (!control || local) return control;
-      if (touchTicket(ticket)) return true;
+    /** Control right now, without counting as use: a remote unlock lasts while
+     *  its ticket is valid, so a lapsed one stops at once, not on the next message. */
+    const controlNow = () => control && (local || isTicketValid(ticket));
+    let unwatchTicket: (() => void) | undefined;
+    /** A remote unlock ended (Lock, a new PIN, idle expiry): drop control here. */
+    const lapse = () => {
+      unwatchTicket?.();
+      unwatchTicket = undefined;
+      if (!control || local) return;
       control = false;
       ticket = undefined;
       sendControlAccess();
+    };
+    // Idle expiry has no event of its own; check for it now and then.
+    const expiryTimer = setInterval(() => {
+      if (control && !local && !isTicketValid(ticket)) lapse();
+    }, CONTROL_EXPIRY_CHECK_MS);
+    /** For a control action: valid, and counts as use (sliding idle expiry).
+     *  Other messages never extend an unlock. */
+    const useControl = () => {
+      if (!control || local) return control;
+      if (touchTicket(ticket)) return true;
+      lapse();
       return false;
     };
     // Every message to this socket goes through here: read-only viewers get
     // tool activity as broad categories, never file names or commands.
     const send = (message: Record<string, unknown>) => {
       // The full request behind an approval is for connections that may answer it.
-      if (message.type === 'agentPermissionPending' && !control && 'detail' in message) {
+      if (message.type === 'agentPermissionPending' && !controlNow() && 'detail' in message) {
         const { detail: _detail, ...rest } = message;
         message = rest;
       }
@@ -408,8 +431,12 @@ function registerWebSocketRoute(
             unlockError = verdict.ok ? undefined : verdict.reason;
             lockedUntil = verdict.ok ? undefined : verdict.lockedUntil;
             if (verdict.ok) {
+              // A fresh unlock replaces this socket's old one, never adds to it.
+              unwatchTicket?.();
+              revokeTicket(ticket);
               ticket = issueTicket();
               control = true;
+              unwatchTicket = watchTicket(ticket, lapse);
             }
             auditControl({
               action: 'unlock',
@@ -422,6 +449,8 @@ function registerWebSocketRoute(
         }
         if (!options.embedded && msg.type === 'lockControl') {
           if (!local) {
+            unwatchTicket?.();
+            unwatchTicket = undefined;
             revokeTicket(ticket);
             ticket = undefined;
             control = false;
@@ -438,7 +467,10 @@ function registerWebSocketRoute(
           packageRoot: options.packageRoot,
           privileged,
           // Embedded (VS Code) keeps upstream behavior: the editor is local.
-          control: options.embedded ? privileged : privileged && hasControl(),
+          control: options.embedded
+            ? privileged
+            : privileged &&
+              (CONTROL_MESSAGE_TYPES.has(String(msg.type)) ? useControl() : controlNow()),
           local,
           ptyManager: options.ptyManager,
         });
@@ -448,6 +480,10 @@ function registerWebSocketRoute(
     });
 
     socket.on('close', () => {
+      clearInterval(expiryTimer);
+      unwatchTicket?.();
+      // The unlock belongs to this page; its terminals end with it.
+      if (!local) revokeTicket(ticket);
       setControlSocket(socket, false);
       store.off('agentAdded', onAgentAdded);
       store.off('agentRemoved', onAgentRemoved);

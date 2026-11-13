@@ -251,6 +251,9 @@ export const MAX_CARD_ORDER_LENGTH = 1_000;
 // ── Browser approvals (PermissionRequest hook decisions) ──
 /** How long the server holds a permission request for a browser answer. The
  *  terminal prompt shows in parallel and wins if answered first. */
+/** How often an open browser socket checks whether its PIN unlock has lapsed. */
+export const CONTROL_EXPIRY_CHECK_MS = 5000;
+
 export const PERMISSION_DECISION_WAIT_MS = 300_000;
 /** Installed timeout (seconds) of the PermissionRequest hook: the wait plus margin. */
 export const PERMISSION_HOOK_TIMEOUT_S = 310;

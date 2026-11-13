@@ -93,6 +93,8 @@ describe('controlPolicy', () => {
       false,
     );
     expect(policy.isLocalRequest('127.0.0.1', { host: 'mac.tailnet.ts.net' })).toBe(false);
+    for (const relay of ['via', 'x-forwarded-host', 'cf-connecting-ip', 'tailscale-user-login'])
+      expect(policy.isLocalRequest('127.0.0.1', { ...host, [relay]: 'x' })).toBe(false);
     expect(policy.isLocalRequest('127.0.0.1', {})).toBe(false);
     expect(policy.isLocalRequest('203.0.113.9', host)).toBe(false);
   });

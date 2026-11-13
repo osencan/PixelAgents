@@ -36,6 +36,20 @@ const SESSION_MOVED_EVENTS: ReadonlySet<string> = new Set([
 /** Longest full request shown for review; longer ones can't be approved here. */
 export const PERMISSION_DETAIL_MAX_CHARS = 8192;
 
+/** Characters that render as nothing, reorder text or vary by font: control
+ *  and format characters (bidi, zero-width), private-use and unassigned code
+ *  points, line/paragraph separators, blank fillers and variation selectors.
+ *  Tab and newline are allowed. */
+const HIDDEN_SOURCE =
+  '(?![\\t\\n])[\\p{Cc}\\p{Cf}\\p{Co}\\p{Cn}\\p{Zl}\\p{Zp}\\u034F\\u115F\\u1160\\u3164\\uFE00-\\uFE0F\\u{E0100}-\\u{E01EF}]';
+const HIDDEN_CHARS = new RegExp(HIDDEN_SOURCE, 'u');
+const HIDDEN_CHARS_ALL = new RegExp(HIDDEN_SOURCE, 'gu');
+
+function escapeChar(c: string): string {
+  const cp = c.codePointAt(0) ?? 0;
+  return cp > 0xffff ? `\\u{${cp.toString(16)}}` : `\\u${cp.toString(16).padStart(4, '0')}`;
+}
+
 /**
  * Everything the approval is about, untruncated: the whole command, the
  * absolute path, the URL, or the tool's full input. The short status line is
@@ -56,8 +70,18 @@ export function permissionDetail(
   else if (toolName === 'WebFetch' && typeof inp.url === 'string' && only(['url']))
     detail = inp.url;
   else detail = JSON.stringify(inp, null, 2);
-  const complete = detail.length <= PERMISSION_DETAIL_MAX_CHARS;
-  return { detail: complete ? detail : detail.slice(0, PERMISSION_DETAIL_MAX_CHARS), complete };
+  // Invisible or reordering characters could make what is shown differ from
+  // what runs: show them as escapes, and allow Deny only.
+  const hidden = HIDDEN_CHARS.test(detail);
+  if (hidden) detail = detail.replace(HIDDEN_CHARS_ALL, escapeChar);
+  const complete = !hidden && detail.length <= PERMISSION_DETAIL_MAX_CHARS;
+  return {
+    detail:
+      detail.length <= PERMISSION_DETAIL_MAX_CHARS
+        ? detail
+        : detail.slice(0, PERMISSION_DETAIL_MAX_CHARS),
+    complete,
+  };
 }
 
 interface Pending {

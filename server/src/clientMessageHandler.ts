@@ -133,7 +133,7 @@ const KEY_HOOKS_INFO_SHOWN = 'pixel-agents.hooksInfoShown';
 const KEY_SHOW_AREAS = 'pixel-agents.showAreas';
 
 /** Messages that control agents rather than watch or arrange the office. */
-const CONTROL_MESSAGE_TYPES: ReadonlySet<string> = new Set([
+export const CONTROL_MESSAGE_TYPES: ReadonlySet<string> = new Set([
   'setApprovalOptIn',
   'approvePermission',
   'launchAgent',

@@ -127,6 +127,16 @@ describe('PermissionBroker', () => {
     // Anything beyond the command (here: backgrounding) shows the whole input.
     const background = permissionDetail('Bash', { command: 'npm start', run_in_background: true });
     expect(background.detail).toContain('run_in_background');
+    // Hidden or reordering characters are shown as escapes and allow Deny only.
+    const bidi = permissionDetail('Bash', { command: 'echo safe\u202E; rm -rf ~' });
+    expect(bidi).toEqual({ detail: 'echo safe\\u202e; rm -rf ~', complete: false });
+    expect(permissionDetail('Bash', { command: 'a\u200Bb\rc' }).detail).toBe('a\\u200bb\\u000dc');
+    expect(permissionDetail('Bash', { command: 'printf "a\tb\n"' }).complete).toBe(true);
+    // Beyond the usual suspects: tag characters, Hangul filler, private use.
+    expect(permissionDetail('Bash', { command: 'ls \u{E0041}' }).detail).toBe('ls \\u{e0041}');
+    expect(permissionDetail('Bash', { command: 'lsㅤ-la' }).complete).toBe(false);
+    expect(permissionDetail('Bash', { command: 'echo ' }).complete).toBe(false);
+    expect(permissionDetail('Bash', { command: 'echo café ünïcode' }).complete).toBe(true);
     expect(permissionDetail('Bash', { command: 'ls', description: 'List files' }).detail).toBe(
       'ls',
     );
