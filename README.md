@@ -5,7 +5,8 @@
 <div align="center">
 
 [![license](https://img.shields.io/github/license/osencan/PixelAgents?color=0183ff&style=flat)](LICENSE)
-[![version](https://img.shields.io/badge/version-2.0.0-0183ff?style=flat)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-2.0.1-0183ff?style=flat)](CHANGELOG.md)
+[![sponsor](https://img.shields.io/badge/sponsor-%E2%99%A5-ea4aaa?style=flat)](https://github.com/sponsors/osencan)
 
 </div>
 
@@ -177,6 +178,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the project structure and how an even
 - **No Approve/Deny buttons**: you need control (Filter → Agent controls), the project's approval switch must be on, and the request must come from Claude in that project.
 - **Can't hire an agent**: add the folder as a **Directory** first; other folders are refused.
 - **The UI looks disconnected**: **Settings → Debug View** shows the connection and agent data.
+
+## Sponsor
+
+If Pixel Agents 2.0 is useful to you, consider [sponsoring its development](https://github.com/sponsors/osencan). It helps keep new features and fixes coming.
 
 ## Credits and thanks
 

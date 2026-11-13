@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.0.1
+
+- **Open pages update themselves**: a page left open while the server is updated now reloads once to pick up the new version (before, it kept its old code until a hard reload, so What's New could show an older release).
+- **Sponsor links**: the repository's Sponsor button, a README badge and section, and a Sponsor button in What's New.
+
 ## v2.0.0
 
 Pixel Agents 2.0 continues from v1.6.0 as its own line ([osencan/PixelAgents](https://github.com/osencan/PixelAgents)); it will not be merged back into the 1.x project. See [FORK.md](FORK.md) for the full list of changes.

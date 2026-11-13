@@ -62,6 +62,7 @@ import { resolveRoomPolicy } from './office/roomPolicy.js';
 import { getPetCount } from './office/sprites/petSpriteData.js';
 import { EditTool, type OfficeLayout, TILE_SIZE } from './office/types.js';
 import { isBrowserRuntime, isE2E } from './runtime.js';
+import { reloadIfStale } from './staleBundle.js';
 import { installTestHooks } from './testHooks.js';
 import { transport } from './transport/index.js';
 import { UsageBars } from './usage/UsageBars.js';
@@ -239,6 +240,11 @@ function App() {
   }, [lastLaunched]);
 
   const currentMajorMinor = toMajorMinor(extensionVersion);
+
+  // An open page that outlived a server update reloads to get the new code.
+  useEffect(() => {
+    reloadIfStale(extensionVersion);
+  }, [extensionVersion]);
 
   const handleWhatsNewDismiss = useCallback(() => {
     transport.send({ type: 'setLastSeenVersion', version: currentMajorMinor });

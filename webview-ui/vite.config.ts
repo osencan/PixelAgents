@@ -110,8 +110,18 @@ function browserMockAssetsPlugin(): Plugin {
   };
 }
 
+/** The version this page is built as, so an open page can tell the server moved on. */
+const appVersion = (
+  JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf-8')) as {
+    version: string;
+  }
+).version;
+
 export default defineConfig({
   plugins: [tailwindcss(), react(), browserMockAssetsPlugin()],
+  define: {
+    __PIXEL_AGENTS_VERSION__: JSON.stringify(appVersion),
+  },
   server: {
     // Dev-only: allow reaching `vite --host` from another device on a
     // Tailscale network (Vite rejects non-localhost Host headers by default).
