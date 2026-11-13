@@ -309,7 +309,7 @@ export function useExtensionMessages(
       setAgentDirectoryNames((prev) => (prev.includes(name) ? prev : [...prev, name]));
     };
 
-    const closeAgent = (os: OfficeState, id: number) => {
+    const closeAgent = (os: OfficeState, id: number, opts?: { retire?: boolean }) => {
       setAgents((prev) => prev.filter((a) => a !== id));
       setSelectedAgent((prev) => (prev === id ? null : prev));
       clearAgentKey(id);
@@ -331,7 +331,8 @@ export function useExtensionMessages(
       delete backgroundParentToolIdsRef.current[id];
       os.removeAllSubagents(id);
       setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
-      os.removeAgent(id);
+      if (opts?.retire) os.retireAgent(id);
+      else os.removeAgent(id);
       clearAgentContextUsed(id);
     };
 
@@ -542,7 +543,9 @@ export function useExtensionMessages(
         moveAgentRoleKey(previousKey, key);
         moveAgentKey(msg.id as number, previousKey, key);
       } else if (msg.type === 'agentClosed') {
-        closeAgent(os, msg.id as number);
+        const id = msg.id as number;
+        // A finished subtask walks to the rest room first and vanishes there.
+        closeAgent(os, id, { retire: os.characters.get(id)?.isSubtask === true });
       } else if (msg.type === 'existingAgents') {
         const incoming = msg.agents as number[];
         if (resyncPending) {

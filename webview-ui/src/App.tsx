@@ -604,7 +604,6 @@ function App() {
         filteredCount={filteredCount}
         mobile={isMobile}
         inToolbar={!isMobile && !officeReadOnly}
-        tokened={!officeReadOnly}
         buttonClassName={!isMobile && !officeReadOnly ? TOOLBAR_ROW_HEIGHT_CLASS : ''}
       />
     ) : null;
@@ -1079,6 +1078,7 @@ function App() {
       )}
 
       <SettingsModal
+        tokened={!officeReadOnly}
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         isDebugMode={isDebugMode}

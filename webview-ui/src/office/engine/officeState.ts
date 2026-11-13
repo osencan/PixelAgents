@@ -12,6 +12,7 @@ import {
   MAX_PET_ID_LENGTH,
   PET_HIT_HALF_WIDTH,
   PET_HIT_HEIGHT,
+  RETIRE_MAX_SEC,
   ROOM_MIN_SPACING_TILES,
   ROOM_RESERVATION_RETRY_SEC,
   WAITING_BUBBLE_DURATION_SEC,
@@ -638,6 +639,20 @@ export class OfficeState {
     // Start despawn animation instead of immediate delete
     startMatrixEffect(ch, 'despawn');
     ch.bubbleType = null;
+  }
+
+  /**
+   * A finished subtask leaves through the rest room: it stops working, walks
+   * to its rest tile and vanishes there. With no rest room, a full or
+   * unreachable one, or after RETIRE_MAX_SEC, it vanishes where it is.
+   */
+  retireAgent(id: number): void {
+    const ch = this.characters.get(id);
+    if (!ch || ch.matrixEffect === 'despawn' || ch.retiringFor !== undefined) return;
+    ch.isActive = false;
+    ch.bubbleType = null;
+    ch.retiringFor = 0;
+    this.forgetSelection(id);
   }
 
   /** Stop selecting and following a character that is leaving. */
@@ -1289,6 +1304,20 @@ export class OfficeState {
             room.whileActive,
           ),
         );
+      }
+
+      if (ch.retiringFor !== undefined) {
+        ch.retiringFor += dt;
+        const held = this.roomReservations.get(ch.id);
+        const arrived =
+          held !== undefined &&
+          ch.tileCol === held.col &&
+          ch.tileRow === held.row &&
+          ch.path.length === 0;
+        const noRoom = held === undefined && (this.roomRetryAt.get(ch.id) ?? 0) > this.roomClock;
+        if (arrived || noRoom || restTiles.length === 0 || ch.retiringFor > RETIRE_MAX_SEC) {
+          this.removeAgent(ch.id);
+        }
       }
 
       // Tick bubble timer for waiting bubbles

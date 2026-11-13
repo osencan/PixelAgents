@@ -5,7 +5,7 @@
 <div align="center">
 
 [![license](https://img.shields.io/github/license/osencan/PixelAgents?color=0183ff&style=flat)](LICENSE)
-[![version](https://img.shields.io/badge/version-2.0.2-0183ff?style=flat)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-2.0.3-0183ff?style=flat)](CHANGELOG.md)
 [![sponsor](https://img.shields.io/badge/sponsor-%E2%99%A5-ea4aaa?style=flat)](https://github.com/sponsors/osencan)
 
 </div>
@@ -33,7 +33,7 @@ Pixel Agents turns the AI coding agents running in your terminals into animated 
 - **Honest statuses**: thinking, planning, reading, editing, running, waiting for permission or for input, idle, or no recent activity. Each is marked **reported** (from a hook or log) or **guessed**. Only a real permission request means "needs approval".
 - **Detail panel**: click a character to see what it's doing, for how long, what it's asking for, this turn's tool steps, its subagents and parent, context use, and recent history.
 - **Quiet notifications** for approval requests, finished turns, failed tools and test/build results.
-- **Subtasks as agents (experimental, off by default)**: turn on **Settings → Show Subtasks as Agents** and each running Claude Code `/subtask` gets its own character beside its session's agent, labelled _Subagent_, _Running_ and the project. It leaves when the subtask finishes.
+- **Subtasks as agents (experimental, off by default)**: turn on **Settings → Show Subtasks as Agents** and each running Claude Code `/subtask` gets its own character beside its session's agent, labelled _Subagent_, _Running_ and the project. When the subtask finishes, it walks to the rest room and leaves.
 - **Rooms with a purpose**: give each painted area a purpose (Work, Rest, Waiting or Planning). Idle agents walk to the rest room and doze after a while, permission waits can queue in a waiting room, and Claude sessions in plan mode can gather in a planning room.
 
 ### Your own view (per browser)
@@ -107,14 +107,14 @@ The first time, the browser asks your consent before installing Claude Code hook
   <img src="images/filter.png" alt="The Filter panel: providers, projects, notifications, tint and agent controls" width="240">
 </p>
 
-**Filter** (bottom toolbar, right of Settings; on phones and read-only pages it floats at the top) holds the provider/project filter, the notifications and tint switches, and **Agent controls**.
+**Filter** (bottom toolbar, right of Settings; on phones and read-only pages it floats at the top) holds the provider/project filter and the notifications and tint switches. **Agent controls** are in **Settings**.
 
 ## Agent controls
 
 Steering is off for everyone until it's allowed:
 
-1. **On the server's machine**, the token URL has control. Set a **control PIN** (6–12 digits) in **Filter → Agent controls**.
-2. **On another device** (phone, tablet), open the token URL, then **Filter → Agent controls → Unlock** with the PIN. An unlock lasts until you lock it or after 30 idle minutes. Five wrong PINs lock that device out for 15 minutes.
+1. **On the server's machine**, the token URL has control. Set a **control PIN** (6–12 digits) in **Settings → Agent controls**.
+2. **On another device** (phone, tablet), open the token URL, then **Settings → Agent controls → Unlock** with the PIN. An unlock lasts until you lock it or after 30 idle minutes. Five wrong PINs lock that device out for 15 minutes.
 3. **Approvals are opt-in per project**: in an agent's panel, tick **Approvals: from the browser, for this project**.
 
 Then:
@@ -176,7 +176,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the project structure and how an even
 
 - **Won't start (`EADDRNOTAVAIL`)**: the `--host` address isn't this machine's current IP. Check it, or give the machine a fixed address in your router.
 - **An agent is missing**: confirm **Settings → Instant Detection (Hooks)** is on, and turn on **Watch All Sessions** for other projects.
-- **No Approve/Deny buttons**: you need control (Filter → Agent controls), the project's approval switch must be on, and the request must come from Claude in that project.
+- **No Approve/Deny buttons**: you need control (Settings → Agent controls), the project's approval switch must be on, and the request must come from Claude in that project.
 - **Can't hire an agent**: add the folder as a **Directory** first; other folders are refused.
 - **The UI looks disconnected**: **Settings → Debug View** shows the connection and agent data.
 

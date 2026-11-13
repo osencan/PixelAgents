@@ -76,7 +76,6 @@ export function ConversationSidebar({
         />
         <div className="p-8 border-t-2 border-border">
           <Button
-            size="md"
             icon="settings"
             // Flat until hovered (or open), its icon and label to the left.
             variant={isSettingsOpen ? 'active' : 'ghost'}

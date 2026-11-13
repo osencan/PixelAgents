@@ -23,7 +23,7 @@ It keeps the 1.x office and continues from v1.6.0 as its own line; it will not b
 - The label above each character shows status and project. Clicking a character opens a **side panel** with what it is doing, its time in the current state, what it asks approval for, this turn's tool steps, subagents, parent/linked agents, context use and recent history.
 - Agents asking for approval light up with a pulsing beacon.
 - Quiet notifications for approval requests, finished turns, failed tools and test/build results ("Tests passed" / "Build failed", taken from the real tool outcome).
-- **Subtasks as agents (experimental, off by default):** with **Settings → Show Subtasks as Agents** on, each running `/subtask` (a fork of a Claude Code session) gets its own character beside its session's agent, with a compact label (_Subagent_ / activity / project), and leaves when it finishes. Known limit: a subtask shares its session's hooks, so its approval requests light up the main agent.
+- **Subtasks as agents (experimental, off by default):** with **Settings → Show Subtasks as Agents** on, each running `/subtask` (a fork of a Claude Code session) gets its own character beside its session's agent, with a compact label (_Subagent_ / activity / project); when it finishes it walks to the rest room and leaves. Known limit: a subtask shares its session's hooks, so its approval requests light up the main agent.
 
 **Your own view (per browser)**
 
@@ -36,7 +36,7 @@ It keeps the 1.x office and continues from v1.6.0 as its own line; it will not b
 
 **Agent controls (opt-in)**
 
-- **Who:** the token URL on the server's machine, or another device after **Filter → Agent controls → Unlock** with a 6–12 digit PIN (lockout after wrong tries, unlock expires when idle).
+- **Who:** the token URL on the server's machine, or another device after **Settings → Agent controls → Unlock** with a 6–12 digit PIN (lockout after wrong tries, unlock expires when idle).
 - **Approve or deny** Claude permission requests from the panel. Approvals are opt-in per project, show the full request, and are signed with a machine-local key. The terminal prompt keeps working in parallel.
 - **Hire agents** into listed Directories and type into them in the terminal drawer.
 - **Skip-permissions is disabled.** Sessions you started in your own terminal can be messaged only through Claude's Remote Control (`claude --remote-control`).
