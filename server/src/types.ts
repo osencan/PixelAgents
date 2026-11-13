@@ -103,6 +103,10 @@ export interface AgentState {
    *  tool_use id that spawned it. Links this character to the lead's
    *  backgroundSpawns entry so the queue-operation completion removes it. */
   spawnToolUseId?: string;
+  /** A fork of the lead's conversation (e.g. Claude Code's /subtask): started
+   *  without a spawn tool call, so it is adopted from its sidecar and removed
+   *  when the sidecar says finished. Never persisted. */
+  isFork?: boolean;
   /** Tool ids of spawn calls whose input carried a `name` — teammates-to-be.
    *  Every agentToolStart (re-)broadcast for these carries isTeammateSpawn so
    *  the webview never creates a Subtask ghost for them. Transient, lazily

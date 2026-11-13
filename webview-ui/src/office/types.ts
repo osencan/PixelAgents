@@ -275,6 +275,8 @@ export interface Character extends Blinker {
   leadAgentId?: number;
   /** True when lead spawns teammates via tmux (run_in_background Agent calls) */
   teamUsesTmux?: boolean;
+  /** A fork of its lead's session (/subtask): drawn with a compact label. */
+  isSubtask?: boolean;
 
   // -- Context gauge --
   /** Tokens in the agent's context as of its newest turn; 0 until reported.

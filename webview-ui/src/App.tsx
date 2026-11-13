@@ -62,9 +62,10 @@ import { resolveRoomPolicy } from './office/roomPolicy.js';
 import { getPetCount } from './office/sprites/petSpriteData.js';
 import { EditTool, type OfficeLayout, TILE_SIZE } from './office/types.js';
 import { isBrowserRuntime, isE2E } from './runtime.js';
-import { reloadIfStale } from './staleBundle.js';
+import { reloadIfBundleChanged, reloadIfStale } from './staleBundle.js';
 import { installTestHooks } from './testHooks.js';
 import { transport } from './transport/index.js';
+import { onReconnect } from './transport/onReconnect.js';
 import { UsageBars } from './usage/UsageBars.js';
 import { useUsageBridge } from './usage/useUsageBridge.js';
 
@@ -124,6 +125,8 @@ function App() {
     extensionVersion,
     watchAllSessions,
     setWatchAllSessions,
+    showSubtaskAgents,
+    setShowSubtaskAgents,
     alwaysShowLabels,
     ghostHeadlessAgents,
     setGhostHeadlessAgents,
@@ -245,6 +248,12 @@ function App() {
   useEffect(() => {
     reloadIfStale(extensionVersion);
   }, [extensionVersion]);
+
+  // ...and one reconnecting to a server that now serves a different build.
+  useEffect(() => {
+    if (!isBrowserRuntime) return;
+    return onReconnect(transport, () => void reloadIfBundleChanged());
+  }, []);
 
   const handleWhatsNewDismiss = useCallback(() => {
     transport.send({ type: 'setLastSeenVersion', version: currentMajorMinor });
@@ -1084,6 +1093,12 @@ function App() {
           const newVal = !watchAllSessions;
           setWatchAllSessions(newVal);
           transport.send({ type: 'setWatchAllSessions', enabled: newVal });
+        }}
+        showSubtaskAgents={showSubtaskAgents}
+        onToggleShowSubtaskAgents={() => {
+          const newVal = !showSubtaskAgents;
+          setShowSubtaskAgents(newVal);
+          transport.send({ type: 'setShowSubtaskAgents', enabled: newVal });
         }}
         hooksInstalled={claudeHooksInstalled}
         onToggleHooksEnabled={() => {

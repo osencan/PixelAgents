@@ -30,6 +30,8 @@ export function agentCreatedMessage(id: number, agent: AgentState): Record<strin
     isTeammate: agent.leadAgentId !== undefined || undefined,
     teammateName: agent.agentName,
     parentAgentId: agent.leadAgentId,
+    // A fork (/subtask): the office draws it as a compact "Subagent" label.
+    isSubtask: agent.isFork || undefined,
     teamName: agent.teamName,
     hooksOnly: agent.hooksOnly || undefined,
     palette: agent.palette,

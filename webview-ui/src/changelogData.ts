@@ -40,6 +40,7 @@ export const changelogEntries: ChangelogEntry[] = [
           'Project labels follow the real git root, worktrees included, and can be pinned to a friendlier name',
           'Rooms with a purpose: Work, Rest, Waiting and Planning; idle agents doze in the rest room',
           'Notifications for approvals, finished turns, failures and test/build results',
+          'Subtasks as their own agents (experimental, off by default: Settings → Show Subtasks as Agents)',
         ],
       },
       {

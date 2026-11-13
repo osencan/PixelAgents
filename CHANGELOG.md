@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.0.2
+
+- **Subtasks as agents (experimental, off by default):** turn on **Settings → Show Subtasks as Agents (experimental)** and each running Claude Code `/subtask` gets its own character beside its session's agent. Its label is compact (_Subagent_ / activity word / project), and it leaves when the subtask finishes, its transcript disappears, or it stays silent for 30 minutes. Known limit: a subtask shares its session's hooks, so its approval requests light up the main agent.
+- **Open pages pick up redeploys of the same version:** after a reconnect, a page compares the build the server now serves with the one it runs and reloads once if they differ.
+- **Fix:** a hook event buffered for a session that registers later is dropped once it has expired, even if the prune timer hasn't run yet. Before, it could survive up to twice the 5-second window.
+- **Tests** for the server token and the agent timers.
+
 ## v2.0.1
 
 - **Open pages update themselves**: a page left open while the server is updated now reloads once to pick up the new version (before, it kept its old code until a hard reload, so What's New could show an older release).

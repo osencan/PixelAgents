@@ -62,7 +62,9 @@ export interface TeamProvider {
    *  `description`, and `name` when the CLI records them. The host uses
    *  toolUseId — or, for an agent revived under a later tool call, taskId — to
    *  match background spawns (teams OFF) to the lead's live spawn tools, and `name` as the classifier: a named spawn is a Teammate, an
-   *  unnamed one is a Sub-agent (see CONTEXT.md — name is the sole distinction). */
+   *  unnamed one is a Sub-agent (see CONTEXT.md — name is the sole distinction).
+   *  `isFork` marks a fork of the lead's conversation (no spawn tool call at
+   *  all), and `finished` whether the sidecar says the agent has ended. */
   discoverTeammates(
     projectDir: string,
     leadSessionId: string,
@@ -75,6 +77,8 @@ export interface TeamProvider {
     taskId?: string;
     description?: string;
     name?: string;
+    isFork?: boolean;
+    finished?: boolean;
   }>;
 
   /** Detect a teammate spawn from a completed spawn-tool result on the LEAD's

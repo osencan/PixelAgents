@@ -103,6 +103,14 @@ describe('SessionRouter', () => {
       expect(router.hasBuffered('sess-old')).toBe(false);
     });
 
+    it('register never hands over an expired event, even before the prune tick removes it', () => {
+      router.bufferEvent('claude', { session_id: 'sess-late', hook_event_name: 'Stop' });
+      // Just past the window, with the prune timer's tick not yet run (it can
+      // land a hair short of the cutoff on a busy machine).
+      vi.setSystemTime(Date.now() + 5_001);
+      expect(router.register('sess-late', 1)).toEqual([]);
+    });
+
     it('preserves recent events during prune', () => {
       router.bufferEvent('claude', { session_id: 'sess-new', hook_event_name: 'Stop' });
       vi.advanceTimersByTime(1_000); // < HOOK_EVENT_BUFFER_MS

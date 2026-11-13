@@ -2,6 +2,10 @@
 export const JSONL_POLL_INTERVAL_MS = 1000;
 export const FILE_WATCHER_POLL_INTERVAL_MS = 500;
 export const PROJECT_SCAN_INTERVAL_MS = 1000;
+/** A fork transcript (e.g. /subtask) is adopted only if written this recently. */
+export const FORK_ADOPT_RECENT_MS = 5 * 60_000;
+/** A fork whose sidecar never says finished leaves after this long without writes. */
+export const FORK_STALE_MS = 30 * 60_000;
 
 // ── Heuristic Agent Status Detection ────────────────────────
 // These timers are the fallback when CLI hooks are not active

@@ -90,6 +90,7 @@ export type ClientMessage =
   | SetUsageBridgeEnabled
   | SetHooksInfoShown
   | SetWatchAllSessions
+  | SetShowSubtaskAgents
   | ExportLayout
   | ImportLayout
   | ExportFile
@@ -121,6 +122,7 @@ export interface AgentCreated {
   agentKey?: string;
   directoryName?: string;
   isExternal?: boolean;
+  isSubtask?: boolean;
   palette?: number;
   repeat?: number;
   seatId?: string;
@@ -192,12 +194,12 @@ export interface AgentToolFailed {
 export interface AgentCheckResult {
   type: 'agentCheckResult';
   id: number;
-  check: AnonymousSchema_47;
+  check: AnonymousSchema_48;
   ok: boolean;
   at: number;
 }
 
-export type AnonymousSchema_47 = 'test' | 'build';
+export type AnonymousSchema_48 = 'test' | 'build';
 
 export interface AgentHistory {
   type: 'agentHistory';
@@ -206,8 +208,8 @@ export interface AgentHistory {
 }
 
 export interface AgentHistoryEntry {
-  kind: AnonymousSchema_53;
-  check?: AnonymousSchema_54;
+  kind: AnonymousSchema_54;
+  check?: AnonymousSchema_55;
   ok?: boolean;
   lifecycle?: AgentLifecycleState;
   observed?: boolean;
@@ -215,9 +217,9 @@ export interface AgentHistoryEntry {
   project?: string;
 }
 
-export type AnonymousSchema_53 = 'state' | 'tool_failed' | 'check';
+export type AnonymousSchema_54 = 'state' | 'tool_failed' | 'check';
 
-export type AnonymousSchema_54 = 'test' | 'build';
+export type AnonymousSchema_55 = 'test' | 'build';
 
 export interface AgentDirectoryChanged {
   type: 'agentDirectoryChanged';
@@ -239,11 +241,11 @@ export interface ControlAccess {
   local: boolean;
   pinSet: boolean;
   ticket?: string;
-  error?: AnonymousSchema_72;
+  error?: AnonymousSchema_73;
   lockedUntil?: number;
 }
 
-export type AnonymousSchema_72 = 'wrong' | 'locked' | 'no-pin';
+export type AnonymousSchema_73 = 'wrong' | 'locked' | 'no-pin';
 
 export interface ControlPinUpdated {
   type: 'controlPinUpdated';
@@ -276,10 +278,10 @@ export interface AgentPermissionResolved {
   type: 'agentPermissionResolved';
   id: number;
   requestId: string;
-  outcome: AnonymousSchema_93;
+  outcome: AnonymousSchema_94;
 }
 
-export type AnonymousSchema_93 = 'allow' | 'deny' | 'timeout' | 'withdrawn' | 'elsewhere';
+export type AnonymousSchema_94 = 'allow' | 'deny' | 'timeout' | 'withdrawn' | 'elsewhere';
 
 export interface AgentToolStart {
   type: 'agentToolStart';
@@ -348,6 +350,7 @@ export interface AgentTeamInfo {
   isTeamLead?: boolean;
   leadAgentId?: number;
   teamUsesTmux?: boolean;
+  isSubtask?: boolean;
 }
 
 export interface AgentContextUsage {
@@ -510,6 +513,7 @@ export interface SettingsLoaded {
   lastSeenVersion: string;
   extensionVersion: string;
   watchAllSessions: boolean;
+  showSubtaskAgents: boolean;
   alwaysShowLabels: boolean;
   ghostHeadlessAgents: boolean;
   hooksEnabled: boolean;
@@ -731,10 +735,10 @@ export interface SetApprovalOptIn {
 export interface ApprovePermission {
   type: 'approvePermission';
   requestId: string;
-  behavior: AnonymousSchema_390;
+  behavior: AnonymousSchema_393;
 }
 
-export type AnonymousSchema_390 = 'allow' | 'deny';
+export type AnonymousSchema_393 = 'allow' | 'deny';
 
 export interface SaveCharacterProfiles {
   type: 'saveCharacterProfiles';
@@ -789,6 +793,11 @@ export interface SetHooksInfoShown {
 
 export interface SetWatchAllSessions {
   type: 'setWatchAllSessions';
+  enabled: boolean;
+}
+
+export interface SetShowSubtaskAgents {
+  type: 'setShowSubtaskAgents';
   enabled: boolean;
 }
 

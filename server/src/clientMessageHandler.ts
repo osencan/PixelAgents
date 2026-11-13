@@ -53,6 +53,7 @@ import {
   listDirectories,
 } from './directories.js';
 import { collectDirectorySuggestions } from './directorySuggestions.js';
+import { setShowSubtaskAgents } from './fileWatcher.js';
 import { hostDirectory } from './hostDirectory.js';
 import { readLayoutFromFile, writeLayoutToFile } from './layoutPersistence.js';
 import { getPaletteCount } from './paletteAssigner.js';
@@ -129,6 +130,7 @@ const KEY_LAST_SEEN_VERSION = 'pixel-agents.lastSeenVersion';
 const KEY_ALWAYS_SHOW_LABELS = 'pixel-agents.alwaysShowLabels';
 const KEY_GHOST_HEADLESS_AGENTS = 'pixel-agents.ghostHeadlessAgents';
 const KEY_WATCH_ALL_SESSIONS = 'pixel-agents.watchAllSessions';
+const KEY_SHOW_SUBTASK_AGENTS = 'pixel-agents.showSubtaskAgents';
 const KEY_HOOKS_INFO_SHOWN = 'pixel-agents.hooksInfoShown';
 const KEY_SHOW_AREAS = 'pixel-agents.showAreas';
 
@@ -519,6 +521,13 @@ export function handleClientMessage(
       adapter?.setSetting(KEY_GHOST_HEADLESS_AGENTS, msg.enabled);
       break;
 
+    case 'setShowSubtaskAgents': {
+      const enabled = msg.enabled === true;
+      adapter?.setSetting(KEY_SHOW_SUBTASK_AGENTS, enabled);
+      setShowSubtaskAgents(enabled, ctx.store);
+      break;
+    }
+
     case 'setWatchAllSessions': {
       const enabled = msg.enabled as boolean;
       adapter?.setSetting(KEY_WATCH_ALL_SESSIONS, enabled);
@@ -875,6 +884,7 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   if (runtime) {
     runtime.watchAllSessions.current = watchAllSessions;
     runtime.hooksEnabled.current = hooksEnabled;
+    setShowSubtaskAgents(settings.showSubtaskAgents);
   }
 
   // 5. Restore persisted external agents (standalone only; VS Code handles its own restore)
@@ -956,6 +966,7 @@ function settingsSnapshot(adapter: StateAdapter | undefined) {
     lastSeenVersion: adapter?.getSetting(KEY_LAST_SEEN_VERSION, '') ?? '',
     extensionVersion: process.env.PIXEL_AGENTS_VERSION ?? '',
     watchAllSessions: adapter?.getSetting(KEY_WATCH_ALL_SESSIONS, false) ?? false,
+    showSubtaskAgents: adapter?.getSetting(KEY_SHOW_SUBTASK_AGENTS, false) ?? false,
     alwaysShowLabels: adapter?.getSetting(KEY_ALWAYS_SHOW_LABELS, false) ?? false,
     ghostHeadlessAgents: adapter?.getSetting(KEY_GHOST_HEADLESS_AGENTS, false) ?? false,
     // A single boolean carrying the CLAUDE provider's preference until the
@@ -1005,6 +1016,7 @@ function refuseReadOnly(
     case 'setAlwaysShowLabels':
     case 'setGhostHeadlessAgents':
     case 'setWatchAllSessions':
+    case 'setShowSubtaskAgents':
     case 'setShowAreas':
     case 'setBypassPermissions':
     case 'setShowHostDirectories':

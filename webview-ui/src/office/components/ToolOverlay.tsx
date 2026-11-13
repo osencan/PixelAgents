@@ -24,6 +24,7 @@ const LINK_LINE_ANCHOR_OFFSET_PX = 10;
 const APPROVAL_BEACON_SIZE_PX = 18;
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
 import {
+  activityWord,
   getActivityText,
   lifecycleAwareText,
   NEEDS_APPROVAL_TEXT,
@@ -351,6 +352,9 @@ export function ToolOverlay({
           else if (life?.permissionSuspected) activityText += ' · approval?';
         }
 
+        // A subtask (fork) keeps its label compact: no command, path or name.
+        if (ch.isSubtask) activityText = activityWord(activityText);
+
         // Determine dot color
         const tools = agentTools[id];
         const hasPermission = subHasPermission || tools?.some((t) => t.permissionWait && !t.done);
@@ -368,9 +372,11 @@ export function ToolOverlay({
         // Team info
         // Team role (LEAD / teammate name) plus the viewer's role badge.
         const viewerRole = isSub ? undefined : getAgentRole(id);
-        const teamRole = ch.isTeamLead ? 'LEAD' : ch.agentName || null;
+        const teamRole = ch.isSubtask ? 'Subagent' : ch.isTeamLead ? 'LEAD' : ch.agentName || null;
         const teamRoleLabel =
-          teamRole && viewerRole ? `${teamRole} · ${viewerRole}` : teamRole || viewerRole || null;
+          teamRole && viewerRole && !ch.isSubtask
+            ? `${teamRole} · ${viewerRole}`
+            : teamRole || viewerRole || null;
 
         // Context gauge. Every agent gets one — lead, teammate, adopted,
         // headless — as soon as the server reports its context (a cleared

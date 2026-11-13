@@ -28,6 +28,7 @@ export function resendAgentActivity(
         isTeamLead: agent.isTeamLead,
         leadAgentId: agent.leadAgentId,
         teamUsesTmux: agent.teamUsesTmux,
+        isSubtask: agent.isFork || undefined,
       });
     }
 

@@ -173,6 +173,7 @@ components:
         - $ref: '#/components/schemas/SetUsageBridgeEnabled'
         - $ref: '#/components/schemas/SetHooksInfoShown'
         - $ref: '#/components/schemas/SetWatchAllSessions'
+        - $ref: '#/components/schemas/SetShowSubtaskAgents'
         - $ref: '#/components/schemas/ExportLayout'
         - $ref: '#/components/schemas/ImportLayout'
         - $ref: '#/components/schemas/ExportFile'
@@ -237,6 +238,9 @@ components:
           type: string
         isExternal:
           type: boolean
+        isSubtask:
+          type: boolean
+          description: A fork of its lead's session (Claude Code's /subtask).
         palette:
           type: integer
           description: Server-assigned character palette index.
@@ -746,6 +750,11 @@ components:
           type: integer
         teamUsesTmux:
           type: boolean
+        isSubtask:
+          type: boolean
+          description: >-
+            A fork of its lead's session (Claude Code's /subtask), shown when
+            Settings → Show Subtasks as Agents is on.
 
     AgentContextUsage:
       description: |
@@ -1013,6 +1022,7 @@ components:
         - lastSeenVersion
         - extensionVersion
         - watchAllSessions
+        - showSubtaskAgents
         - alwaysShowLabels
         - ghostHeadlessAgents
         - hooksEnabled
@@ -1032,6 +1042,11 @@ components:
           type: string
         watchAllSessions:
           type: boolean
+        showSubtaskAgents:
+          type: boolean
+          description: >-
+            Experimental, off by default: forks of a session (Claude Code's
+            /subtask) appear as their own characters while they run.
         alwaysShowLabels:
           type: boolean
         ghostHeadlessAgents:
@@ -1720,6 +1735,19 @@ components:
       properties:
         type:
           const: setAlwaysShowLabels
+        enabled:
+          type: boolean
+
+    SetShowSubtaskAgents:
+      description: >-
+        Turn the experimental subtask characters on or off. Off removes the
+        fork characters currently shown.
+      type: object
+      additionalProperties: false
+      required: [type, enabled]
+      properties:
+        type:
+          const: setShowSubtaskAgents
         enabled:
           type: boolean
 

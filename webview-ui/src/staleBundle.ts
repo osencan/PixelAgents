@@ -36,3 +36,46 @@ export function reloadIfStale(
   reload();
   return true;
 }
+
+// ── Same version, new build ──────────────────────────────────────
+// A redeploy without a version bump (a fix, a trial build) leaves the
+// version check blind. The served index.html names the current entry script
+// (hashed per build), so a page compares that with the script it runs.
+
+const ENTRY_SCRIPT = /assets\/index-[\w-]+\.js/;
+const RELOADED_FOR_BUNDLE_KEY = 'pixel-agents.reloadedForBundle';
+
+/** The entry script this page runs ("assets/index-<hash>.js"), if any. */
+function runningBundle(): string | null {
+  for (const script of document.querySelectorAll('script[src]')) {
+    const match = ENTRY_SCRIPT.exec(script.getAttribute('src') ?? '');
+    if (match) return match[0];
+  }
+  return null;
+}
+
+/** Reload when the server now serves a different build. True if it reloaded. */
+export async function reloadIfBundleChanged(
+  fetchPage: () => Promise<string> = () =>
+    fetch(window.location.href, { cache: 'no-store' }).then((r) => r.text()),
+  running: string | null = runningBundle(),
+  storage: Pick<Storage, 'getItem' | 'setItem'> | null = globalThis.sessionStorage ?? null,
+  reload: () => void = reloadBypassingCache,
+): Promise<boolean> {
+  if (!running) return false;
+  let served: string | undefined;
+  try {
+    served = ENTRY_SCRIPT.exec(await fetchPage())?.[0];
+  } catch {
+    return false;
+  }
+  if (!served || served === running) return false;
+  try {
+    if (!storage || storage.getItem(RELOADED_FOR_BUNDLE_KEY) === served) return false;
+    storage.setItem(RELOADED_FOR_BUNDLE_KEY, served);
+  } catch {
+    return false;
+  }
+  reload();
+  return true;
+}
