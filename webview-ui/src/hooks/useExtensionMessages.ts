@@ -17,6 +17,8 @@ import {
 import { moveAgentRoleKey } from '../office/agentRoles.js';
 import { clearCheckResult, showCheckResult } from '../office/checkResults.js';
 import { clearAgentContextUsed, setAgentContextUsed } from '../office/contextGauge.js';
+import type { ControlAccess } from '../office/controlAccess.js';
+import { setApprovalOptIns, setControlAccess, setPinSet } from '../office/controlAccess.js';
 import type { ExistingAgentMeta, PendingAgent } from '../office/engine/existingAgents.js';
 import {
   reconcileExistingAgents,
@@ -35,6 +37,11 @@ import {
   NOTICE_TEXT,
   pushToast,
 } from '../office/notifications.js';
+import {
+  clearAgentPermissions,
+  clearPendingPermission,
+  setPendingPermission,
+} from '../office/permissionRequests.js';
 import { setCarpetSprites } from '../office/sprites/carpetTiles.js';
 import { setPetTemplates } from '../office/sprites/petSpriteData.js';
 import {
@@ -306,6 +313,7 @@ export function useExtensionMessages(
       clearAgentLifecycle(id);
       clearAgentHistory(id);
       clearCheckResult(id);
+      clearAgentPermissions(id);
       for (const kind of ['approval', 'finished', 'failed'] as const) dismissAgentToasts(id, kind);
       // Drop the drawer tab too. terminalSessionClosed normally does this, but
       // an agent can be removed without its PTY ever reporting an exit (e.g.
@@ -498,6 +506,31 @@ export function useExtensionMessages(
         }
         for (const pending of pendingAgents) if (pending.id === id) pending.directoryName = name;
         noteDirectoryName(name);
+      } else if (msg.type === 'controlAccess') {
+        setControlAccess({
+          control: msg.control === true,
+          local: msg.local === true,
+          pinSet: msg.pinSet === true,
+          ticket: msg.ticket as string | undefined,
+          error: msg.error as ControlAccess['error'],
+          lockedUntil: msg.lockedUntil as number | undefined,
+        });
+      } else if (msg.type === 'controlPinUpdated') {
+        setPinSet(msg.pinSet === true);
+      } else if (msg.type === 'agentPermissionPending') {
+        setPendingPermission({
+          requestId: msg.requestId as string,
+          agentId: msg.id as number,
+          toolName: msg.toolName as string,
+          status: msg.status as string,
+          detail: msg.detail as string | undefined,
+          complete: msg.complete === true,
+          expiresAt: msg.expiresAt as number,
+        });
+      } else if (msg.type === 'agentPermissionResolved') {
+        clearPendingPermission(msg.requestId as string);
+      } else if (msg.type === 'approvalOptIns') {
+        setApprovalOptIns(msg.agentIds as number[]);
       } else if (msg.type === 'agentKeyChanged') {
         // Same character, new session (/clear, resume): its hide and role stay.
         const previousKey = msg.previousKey as string;

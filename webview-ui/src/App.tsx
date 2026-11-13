@@ -574,12 +574,13 @@ function App() {
   const filteredCount = cardAgents.length - shownCardAgents.length;
 
   const agentFilter =
-    agents.length > 0 && !editor.isEditMode ? (
+    (agents.length > 0 || !officeReadOnly) && !editor.isEditMode ? (
       <AgentFilter
         labels={cardAgents.map((id) => officeState.characters.get(id)?.directoryName)}
         filteredCount={filteredCount}
         mobile={isMobile}
         inToolbar={!isMobile && !officeReadOnly}
+        tokened={!officeReadOnly}
         buttonClassName={!isMobile && !officeReadOnly ? TOOLBAR_ROW_HEIGHT_CLASS : ''}
       />
     ) : null;
@@ -595,6 +596,7 @@ function App() {
         mobile={isMobile}
         onClose={closeDetailPanel}
         onSetProjectLabel={officeReadOnly ? undefined : setProjectLabel}
+        ownedByOffice={terminalAgentIds.includes(focusedAgentId)}
       />
     ) : null;
 

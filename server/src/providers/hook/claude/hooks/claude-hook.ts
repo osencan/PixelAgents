@@ -1,10 +1,25 @@
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 
-import { HOOK_API_PREFIX } from '../../../../constants.js';
-import { liveServers, postToServer } from './serverRegistry.js';
+import {
+  HOOK_API_PREFIX,
+  PERMISSION_DECISION_PATH,
+  PERMISSION_DECISION_WAIT_MS,
+} from '../../../../constants.js';
+import type { PermissionBehavior } from './serverRegistry.js';
+import {
+  liveServers,
+  postToServer,
+  readRegistry,
+  requestPermissionDecision,
+} from './serverRegistry.js';
 
 /** Per-server POST timeout. */
 const HOOK_POST_TIMEOUT_MS = 2000;
+/** Extra wait beyond the server's hold, so the server's own answer arrives first. */
+const PERMISSION_REQUEST_SLACK_MS = 3000;
+/** How long an allow waits for a conflicting deny from another server. */
+const CONFLICT_GRACE_MS = 300;
 
 /**
  * CI / e2e diagnostic: when PIXEL_AGENTS_DEBUG_LOG is set, record the hook
@@ -59,6 +74,44 @@ async function main(): Promise<void> {
   }
 
   const body = JSON.stringify(data);
+
+  // A permission request may be answered from the office (opted-in projects):
+  // ask every server, take the first decision, and print it as Claude's
+  // documented hook output. No decision prints nothing, so the terminal
+  // prompt -- shown in parallel all along -- decides.
+  // Only servers from the registry may decide (not the legacy server.json).
+  const deciders = readRegistry(hookDebug).filter((s) => s.decisionKey);
+  if (eventName === 'PermissionRequest' && deciders.length > 0) {
+    const nonce = crypto.randomBytes(16).toString('hex');
+    const asks = deciders.map((server) =>
+      requestPermissionDecision(
+        server,
+        {
+          path: `${HOOK_API_PREFIX}/claude/${PERMISSION_DECISION_PATH}`,
+          body,
+          label,
+          debug: hookDebug,
+          timeoutMs: PERMISSION_DECISION_WAIT_MS + PERMISSION_REQUEST_SLACK_MS,
+        },
+        nonce,
+      ),
+    );
+    const decision = await firstDecision(asks.map((a) => a.decision));
+    for (const a of asks) a.abort();
+    if (decision) {
+      process.stdout.write(
+        JSON.stringify({
+          hookSpecificOutput: {
+            hookEventName: 'PermissionRequest',
+            decision: { behavior: decision },
+          },
+        }),
+      );
+    }
+    hookDebug(`exit reason=permission decision=${decision ?? 'none'}`);
+    return;
+  }
+
   await Promise.all(
     servers.map((server) =>
       postToServer(server, {
@@ -70,6 +123,30 @@ async function main(): Promise<void> {
       }),
     ),
   );
+}
+
+/** The first decision, deny winning: a deny is taken at once; an allow is
+ *  taken once every server has answered or after a short grace for a
+ *  conflicting deny. Null once every server has answered none. */
+function firstDecision(
+  decisions: Array<Promise<PermissionBehavior | null>>,
+): Promise<PermissionBehavior | null> {
+  return new Promise((resolve) => {
+    let pending = decisions.length;
+    let allowed = false;
+    if (pending === 0) resolve(null);
+    for (const d of decisions) {
+      void d.then((value) => {
+        pending -= 1;
+        if (value === 'deny') return resolve('deny');
+        if (value === 'allow' && !allowed) {
+          allowed = true;
+          setTimeout(() => resolve('allow'), pending > 0 ? CONFLICT_GRACE_MS : 0);
+        }
+        if (pending === 0) resolve(allowed ? 'allow' : null);
+      });
+    }
+  });
 }
 
 main()

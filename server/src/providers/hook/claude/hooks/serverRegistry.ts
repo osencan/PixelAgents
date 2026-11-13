@@ -22,6 +22,7 @@ import {
   SERVERS_DIR,
   WILDCARD_HOSTNAMES,
 } from '../../../../constants.js';
+import { PERMISSION_NONCE_HEADER, verifyDecision } from '../../../../permissionSignature.js';
 import type { ServerConfig, ServerTarget } from '../../../../serverConfig.js';
 import { isServerConfig, isServerTarget } from '../../../../serverConfig.js';
 
@@ -175,4 +176,80 @@ export function postToServer(server: ServerTarget, post: ServerPost): Promise<vo
       resolve();
     }
   });
+}
+
+export type PermissionBehavior = 'allow' | 'deny';
+
+/**
+ * Ask one server for a browser decision on a permission request: the server
+ * holds the request until someone answers in the office, the terminal answers
+ * first, or it gives up. Resolves the decision, or null for "no decision" (any
+ * failure included -- the terminal prompt then decides). `abort` drops the
+ * request once another server has decided.
+ */
+export function requestPermissionDecision(
+  server: ServerConfig,
+  post: ServerPost,
+  nonce: string,
+): { decision: Promise<PermissionBehavior | null>; abort: () => void } {
+  const { path: urlPath, body, label, debug, timeoutMs } = post;
+  let req: http.ClientRequest | undefined;
+  const decision = new Promise<PermissionBehavior | null>((resolve) => {
+    try {
+      req = http.request(
+        {
+          hostname: deliveryHost(server),
+          port: server.port,
+          path: urlPath,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(body),
+            Authorization: `Bearer ${server.token}`,
+            [PERMISSION_NONCE_HEADER]: nonce,
+          },
+          timeout: timeoutMs,
+        },
+        (res) => {
+          if (res.statusCode !== 200) {
+            res.resume();
+            resolve(null);
+            return;
+          }
+          let text = '';
+          res.setEncoding('utf8');
+          res.on('data', (chunk: string) => {
+            if (text.length < 4096) text += chunk;
+          });
+          res.on('end', () => {
+            try {
+              const parsed = JSON.parse(text) as { decision?: unknown; signature?: unknown };
+              const d = parsed.decision;
+              // Only a decision signed with this server's decision key counts --
+              // a key read from the local registry and never sent anywhere, so
+              // whatever else listens on the port cannot approve a tool call.
+              const valid =
+                (d === 'allow' || d === 'deny') &&
+                !!server.decisionKey &&
+                verifyDecision(server.decisionKey, nonce, d, parsed.signature);
+              debug(`DECISION ${label} port=${server.port} decision=${String(d)} valid=${valid}`);
+              resolve(valid ? (d as PermissionBehavior) : null);
+            } catch {
+              resolve(null);
+            }
+          });
+          res.on('error', () => resolve(null));
+        },
+      );
+      req.on('error', () => resolve(null));
+      req.on('timeout', () => {
+        req?.destroy();
+        resolve(null);
+      });
+      req.end(body);
+    } catch {
+      resolve(null);
+    }
+  });
+  return { decision, abort: () => req?.destroy() };
 }

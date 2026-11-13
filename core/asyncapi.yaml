@@ -92,6 +92,12 @@ components:
         - $ref: '#/components/schemas/AgentHistory'
         - $ref: '#/components/schemas/AgentDirectoryChanged'
         - $ref: '#/components/schemas/AgentKeyChanged'
+        - $ref: '#/components/schemas/ControlAccess'
+        - $ref: '#/components/schemas/ControlPinUpdated'
+        - $ref: '#/components/schemas/ControlRefused'
+        - $ref: '#/components/schemas/ApprovalOptIns'
+        - $ref: '#/components/schemas/AgentPermissionPending'
+        - $ref: '#/components/schemas/AgentPermissionResolved'
         - $ref: '#/components/schemas/AgentToolStart'
         - $ref: '#/components/schemas/AgentToolDone'
         - $ref: '#/components/schemas/AgentToolsClear'
@@ -152,6 +158,11 @@ components:
         - $ref: '#/components/schemas/SaveAgentSeats'
         - $ref: '#/components/schemas/SaveLayout'
         - $ref: '#/components/schemas/SetProjectLabel'
+        - $ref: '#/components/schemas/UnlockControl'
+        - $ref: '#/components/schemas/LockControl'
+        - $ref: '#/components/schemas/SetControlPin'
+        - $ref: '#/components/schemas/SetApprovalOptIn'
+        - $ref: '#/components/schemas/ApprovePermission'
         - $ref: '#/components/schemas/SaveCharacterProfiles'
         - $ref: '#/components/schemas/SetSoundEnabled'
         - $ref: '#/components/schemas/SetLastSeenVersion'
@@ -300,6 +311,114 @@ components:
           description: Map of agent ID (string) to its linked worktree name, when in one.
           additionalProperties:
             type: string
+
+    ControlAccess:
+      description: >-
+        This connection's control state: whether it may control agents, whether
+        it is on the server's machine, whether a PIN exists, and (after a PIN
+        unlock) a ticket for the terminal socket. Sent on connect and on change.
+      type: object
+      additionalProperties: false
+      required: [type, control, local, pinSet]
+      properties:
+        type:
+          const: controlAccess
+        control:
+          type: boolean
+        local:
+          type: boolean
+        pinSet:
+          type: boolean
+        ticket:
+          type: string
+        error:
+          type: string
+          enum: [wrong, locked, no-pin]
+        lockedUntil:
+          type: integer
+
+    ControlPinUpdated:
+      description: Result of setControlPin.
+      type: object
+      additionalProperties: false
+      required: [type, ok, pinSet]
+      properties:
+        type:
+          const: controlPinUpdated
+        ok:
+          type: boolean
+        pinSet:
+          type: boolean
+
+    ControlRefused:
+      description: A control message was refused (no control on this connection).
+      type: object
+      additionalProperties: false
+      required: [type, action]
+      properties:
+        type:
+          const: controlRefused
+        action:
+          type: string
+
+    AgentPermissionPending:
+      description: >-
+        A permission request the office may answer (opted-in project, held for
+        a browser decision until expiresAt). `status` says what is asked
+        (categories only for read-only viewers).
+      type: object
+      additionalProperties: false
+      required: [type, id, requestId, toolName, status, expiresAt]
+      properties:
+        type:
+          const: agentPermissionPending
+        id:
+          type: integer
+        requestId:
+          type: string
+        toolName:
+          type: string
+        status:
+          type: string
+        detail:
+          type: string
+          description: >-
+            The full request (whole command, absolute path, URL or the tool's
+            input). Only connections that may answer receive it.
+        complete:
+          type: boolean
+          description: False when the request was too long to show in full; it can then only be denied here.
+        expiresAt:
+          type: integer
+
+    AgentPermissionResolved:
+      description: A held permission request ended (answered here or elsewhere, withdrawn, or timed out).
+      type: object
+      additionalProperties: false
+      required: [type, id, requestId, outcome]
+      properties:
+        type:
+          const: agentPermissionResolved
+        id:
+          type: integer
+        requestId:
+          type: string
+        outcome:
+          type: string
+          enum: [allow, deny, timeout, withdrawn, elsewhere]
+
+    ApprovalOptIns:
+      description: The agents whose project accepts browser approvals (tokened clients only).
+      type: object
+      additionalProperties: false
+      required: [type, agentIds]
+      properties:
+        type:
+          const: approvalOptIns
+        agentIds:
+          type: array
+          items:
+            type: integer
 
     AgentKeyChanged:
       description: >-
@@ -1471,6 +1590,66 @@ components:
         layout:
           type: object
           description: Opaque layout object; format owned by the rendering layer.
+
+    UnlockControl:
+      description: >-
+        Unlock agent control on this connection with the control PIN (needed
+        from devices other than the server's machine). Tokened clients only.
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type:
+          const: unlockControl
+        pin:
+          type: string
+
+    LockControl:
+      description: End this connection's PIN unlock.
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type:
+          const: lockControl
+
+    SetControlPin:
+      description: Set or change the control PIN (6-12 digits); accepted only from the server's machine.
+      type: object
+      additionalProperties: false
+      required: [type, pin]
+      properties:
+        type:
+          const: setControlPin
+        pin:
+          type: string
+
+    ApprovePermission:
+      description: Answer a held permission request (control clients only).
+      type: object
+      additionalProperties: false
+      required: [type, requestId, behavior]
+      properties:
+        type:
+          const: approvePermission
+        requestId:
+          type: string
+        behavior:
+          type: string
+          enum: [allow, deny]
+
+    SetApprovalOptIn:
+      description: Allow (or stop allowing) browser approvals for the project the agent works in.
+      type: object
+      additionalProperties: false
+      required: [type, id, enabled]
+      properties:
+        type:
+          const: setApprovalOptIn
+        id:
+          type: integer
+        enabled:
+          type: boolean
 
     SetProjectLabel:
       description: >-

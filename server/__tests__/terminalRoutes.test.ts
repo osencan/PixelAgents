@@ -41,6 +41,7 @@ vi.mock('os', async () => {
 // Imported after the os mock is registered, so server.ts picks up the temp HOME.
 const { PixelAgentsServer } = await import('../src/server.js');
 const { AgentStateStore } = await import('../src/agentStateStore.js');
+const { issueTicket, revokeTicket } = await import('../src/controlPolicy.js');
 
 /** Minimal fake PTY -- no real process is ever spawned by these tests. */
 class FakePty implements IPty {
@@ -214,15 +215,48 @@ describe('terminal WebSocket auth', () => {
       ptyManager,
       allowedHosts: [proxy],
     });
-    const ws = new WebSocket(terminalUrl(config.port, 1, config.token), {
-      headers: { origin: `https://${proxy}`, host: proxy },
-    });
+    // A proxied user is not at this machine: a terminal needs a PIN-unlock
+    // ticket too (controlPolicy). Without one it is refused...
+    const noTicket = await attach(config.port, 1, config.token, `https://${proxy}`, proxy);
+    expect(noTicket.code).toBe(WS_CLOSE_UNAUTHORIZED);
+    // ...and with a valid ticket it attaches.
+    const ticket = issueTicket();
+    const ws = new WebSocket(
+      `${terminalUrl(config.port, 1, config.token)}&ticket=${encodeURIComponent(ticket)}`,
+      { headers: { origin: `https://${proxy}`, host: proxy } },
+    );
     await new Promise<void>((resolve, reject) => {
       ws.on('open', () => resolve());
       ws.on('close', (code: number) => reject(new Error(`closed with ${String(code)}`)));
       ws.on('error', reject);
     });
     ws.close();
+  });
+
+  it('closes a remote terminal as soon as its unlock is revoked (Lock, new PIN)', async () => {
+    const proxy = 'my-mac.tailnet.ts.net';
+    server.stop();
+    server = new PixelAgentsServer();
+    const config = await server.start({
+      store: new AgentStateStore(),
+      embedded: false,
+      ptyManager,
+      allowedHosts: [proxy],
+    });
+    const ticket = issueTicket();
+    const ws = new WebSocket(
+      `${terminalUrl(config.port, 1, config.token)}&ticket=${encodeURIComponent(ticket)}`,
+      { headers: { origin: `https://${proxy}`, host: proxy } },
+    );
+    await new Promise<void>((resolve, reject) => {
+      ws.on('open', () => resolve());
+      ws.on('error', reject);
+    });
+    const closed = new Promise<number>((resolve) =>
+      ws.on('close', (code: number) => resolve(code)),
+    );
+    revokeTicket(ticket);
+    expect(await closed).toBe(WS_CLOSE_UNAUTHORIZED);
   });
 
   it('rejects attaching to an agent with no terminal, even with a valid token', async () => {

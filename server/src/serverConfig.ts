@@ -27,6 +27,10 @@ export interface StandaloneAccess {
 
 /** Complete per-server discovery record stored in the multi-server registry. */
 export interface ServerConfig extends ServerTarget {
+  /** Signs browser decisions on permission requests. Unlike the token it is
+   *  never sent over the network: the hook reads it from this owner-only
+   *  registry entry, so a process squatting on the port can't forge one. */
+  decisionKey?: string;
   /** Timestamp (ms) when the server started. */
   startedAt: number;
   /** Whether this server serves the webview SPA (standalone / !embedded). */
@@ -91,6 +95,7 @@ export function isServerConfig(value: unknown): value is ServerConfig {
     (value.startedAt as number) >= 0 &&
     typeof value.servesSpa === 'boolean' &&
     value.protocol === SERVER_REGISTRY_PROTOCOL_VERSION &&
-    (value.standalone === undefined || isStandaloneAccess(value.standalone))
+    (value.standalone === undefined || isStandaloneAccess(value.standalone)) &&
+    (value.decisionKey === undefined || typeof value.decisionKey === 'string')
   );
 }

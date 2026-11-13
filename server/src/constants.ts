@@ -188,6 +188,9 @@ export const TERMINAL_DISABLED_BY_FLAG_REASON = 'Terminal disabled with --no-ter
  *  or a Host outside the allowlist): the PTY may work, but this connection may
  *  not open one. Launching an agent starts a shell as the operator, so it is
  *  gated exactly like the hooks toggle (wsAuth.standaloneHandshakeVerdict). */
+/** terminalAvailability reason for a tokened connection without agent control. */
+export const TERMINAL_REQUIRES_CONTROL_REASON =
+  'Unlock agent controls (Filter panel) to launch agents and use their terminals from this device.';
 export const TERMINAL_REQUIRES_TOKEN_REASON =
   'Open the URL the CLI printed (with its ?token=), at localhost or a name passed with --allowed-host, to launch agents from this browser.';
 /** directoryRejected reason when the shared config write behind a Directory
@@ -244,3 +247,12 @@ export const NEW_CONVERSATION_TITLE = 'New conversation';
 /** Most agent ids a saved card order keeps. The order is pruned to live agents
  *  on every save, so this only bounds a hand-edited or hostile payload. */
 export const MAX_CARD_ORDER_LENGTH = 1_000;
+
+// ── Browser approvals (PermissionRequest hook decisions) ──
+/** How long the server holds a permission request for a browser answer. The
+ *  terminal prompt shows in parallel and wins if answered first. */
+export const PERMISSION_DECISION_WAIT_MS = 300_000;
+/** Installed timeout (seconds) of the PermissionRequest hook: the wait plus margin. */
+export const PERMISSION_HOOK_TIMEOUT_S = 310;
+/** Path, under the hook API prefix and provider, where the hook asks for a decision. */
+export const PERMISSION_DECISION_PATH = 'permission';

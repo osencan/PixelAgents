@@ -118,7 +118,8 @@ const TOKEN_QUERY_REDACTED = '[redacted]';
  * the logged line still identifies the request.
  */
 export function redactTokenQuery(url: string): string {
-  return url.replace(/([?&]token=)[^&#]*/g, `$1${TOKEN_QUERY_REDACTED}`);
+  // The control ticket (terminal sockets after a PIN unlock) is a secret too.
+  return url.replace(/([?&](?:token|ticket)=)[^&#]*/g, `$1${TOKEN_QUERY_REDACTED}`);
 }
 
 // ── Host allowlist ─────────────────────────────────────────────

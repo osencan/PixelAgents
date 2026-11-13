@@ -37,7 +37,9 @@ import {
   TERMINAL_DISABLED_BY_FLAG_REASON,
   WILDCARD_HOSTNAMES,
 } from './constants.js';
+import { startApprovalOptInBroadcaster } from './controlPolicy.js';
 import { FileStateAdapter } from './fileStateAdapter.js';
+import { startPermissionBroker } from './permissionBroker.js';
 import {
   claudeProvider,
   copyHookScript,
@@ -516,6 +518,8 @@ async function main(): Promise<void> {
     const claudeDirectoryLabels = startClaudeDirectoryLabels(store);
     const agentLifecycle = startAgentLifecycle(store);
     const agentKeyTracker = startAgentKeyTracker(store);
+    const approvalOptIns = startApprovalOptInBroadcaster(store);
+    const permissionBroker = startPermissionBroker(store);
 
     // ── Graceful shutdown ──
     let shuttingDown = false;
@@ -527,6 +531,8 @@ async function main(): Promise<void> {
       claudeDirectoryLabels.dispose();
       agentLifecycle.dispose();
       agentKeyTracker.dispose();
+      approvalOptIns.dispose();
+      permissionBroker.dispose();
       // In process: kill child terminals and wait for them (each exit closes
       // its agent): exiting now would cancel the SIGKILL escalation and leave
       // a child that ignores SIGHUP orphaned on a dead server. With the PTY

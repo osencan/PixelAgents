@@ -1,3 +1,6 @@
+import * as fs from 'fs';
+import * as path from 'path';
+
 import type { StateAdapter } from '../../core/src/adapter.js';
 import { rosterPick } from '../../core/src/paletteUtils.js';
 import type { HookProvider } from '../../core/src/provider.js';
@@ -21,7 +24,19 @@ import {
   setHooksEnabled,
   writeConfig,
 } from './configPersistence.js';
-import { MAX_CHARACTER_REPEAT, TERMINAL_REQUIRES_TOKEN_REASON } from './constants.js';
+import {
+  MAX_CHARACTER_REPEAT,
+  TERMINAL_REQUIRES_CONTROL_REASON,
+  TERMINAL_REQUIRES_TOKEN_REASON,
+} from './constants.js';
+import {
+  approvalOptInsMessage,
+  auditControl,
+  isPinSet,
+  isValidPinShape,
+  setApprovalEnabled,
+  setControlPin,
+} from './controlPolicy.js';
 import {
   conversationLimitsFrom,
   conversationQueryFrom,
@@ -32,6 +47,7 @@ import {
   searchConversations,
 } from './conversations.js';
 import {
+  expandTilde,
   handleDirectoryClientMessage,
   type HostDirectoryEntry,
   listDirectories,
@@ -40,6 +56,7 @@ import { collectDirectorySuggestions } from './directorySuggestions.js';
 import { hostDirectory } from './hostDirectory.js';
 import { readLayoutFromFile, writeLayoutToFile } from './layoutPersistence.js';
 import { getPaletteCount } from './paletteAssigner.js';
+import { permissionBrokerFor } from './permissionBroker.js';
 import { setProjectLabel } from './projectLabels.js';
 import type { ConsentEffects } from './providers/hook/consentExecutor.js';
 import { applyConsentChoice } from './providers/hook/consentExecutor.js';
@@ -93,6 +110,11 @@ export interface ClientMessageContext {
    * it gets the safe answer.
    */
   privileged?: boolean;
+  /** Whether this client may CONTROL agents (controlPolicy.ts): privileged and
+   *  either on this machine or unlocked with the control PIN. */
+  control?: boolean;
+  /** The connection comes from this machine (loopback or an own interface). */
+  local?: boolean;
   /** The package root holding dist/hooks/, from which the Usage Bars toggle
    *  installs the status line bridge. Absent = this host cannot install it. */
   packageRoot?: string;
@@ -109,6 +131,15 @@ const KEY_GHOST_HEADLESS_AGENTS = 'pixel-agents.ghostHeadlessAgents';
 const KEY_WATCH_ALL_SESSIONS = 'pixel-agents.watchAllSessions';
 const KEY_HOOKS_INFO_SHOWN = 'pixel-agents.hooksInfoShown';
 const KEY_SHOW_AREAS = 'pixel-agents.showAreas';
+
+/** Messages that control agents rather than watch or arrange the office. */
+const CONTROL_MESSAGE_TYPES: ReadonlySet<string> = new Set([
+  'setApprovalOptIn',
+  'approvePermission',
+  'launchAgent',
+  'resumeConversation',
+  'closeAgent',
+]);
 const KEY_BYPASS_PERMISSIONS = 'pixel-agents.bypassPermissions';
 const KEY_SHOW_HOST_DIRECTORIES = 'pixel-agents.showHostDirectories';
 
@@ -135,6 +166,41 @@ function hostDirectoriesFor(ctx: ClientMessageContext): HostDirectoryEntry[] {
  * in the start directory keeps its name (and its Area mapping) either way, and
  * a hidden start directory becomes something the suggestions can offer.
  */
+/** Terminals (launching agents, typing into them) are for connections with
+ *  agent control: the token, plus this machine or a PIN unlock. */
+export function terminalAvailabilityMessage(
+  ptyManager: Pick<TerminalSessions, 'isAvailable' | 'unavailableReason'>,
+  privileged: boolean,
+  control: boolean,
+): Record<string, unknown> {
+  return {
+    type: 'terminalAvailability',
+    available: privileged && control && ptyManager.isAvailable(),
+    reason:
+      ptyManager.unavailableReason() ??
+      (!privileged
+        ? TERMINAL_REQUIRES_TOKEN_REASON
+        : !control
+          ? TERMINAL_REQUIRES_CONTROL_REASON
+          : undefined),
+  };
+}
+
+/** Whether `dir` is (by real path) one of the Directories this client is shown. */
+function isListedDirectory(ctx: ClientMessageContext, dir: unknown): boolean {
+  if (typeof dir !== 'string' || !dir.trim()) return false;
+  const real = (p: string): string | null => {
+    try {
+      return fs.realpathSync(expandTilde(p));
+    } catch {
+      return null;
+    }
+  };
+  const target = real(dir);
+  if (!target) return false;
+  return listDirectories(shownHostDirectoriesFor(ctx)).some((d) => real(d.path) === target);
+}
+
 function shownHostDirectoriesFor(ctx: ClientMessageContext): HostDirectoryEntry[] {
   return ctx.store.getAdapter()?.getSetting(KEY_SHOW_HOST_DIRECTORIES, false)
     ? hostDirectoriesFor(ctx)
@@ -172,6 +238,18 @@ export function handleClientMessage(
     return;
   }
 
+  // Controlling agents needs more than the token (controlPolicy.ts); refused
+  // here for the same privileged-by-default reason as above.
+  if (CONTROL_MESSAGE_TYPES.has(String(msg.type)) && !ctx.control) {
+    auditControl({
+      action: String(msg.type),
+      client: ctx.local ? 'local' : 'remote',
+      outcome: 'refused',
+    });
+    send({ type: 'controlRefused', action: String(msg.type) });
+    return;
+  }
+
   switch (msg.type) {
     case 'webviewReady':
       handleWebviewReady(send, ctx);
@@ -182,6 +260,17 @@ export function handleClientMessage(
       // the browser drawer (a shell running as the operator -- privileged, like
       // every message past the read-only gate above).
       if (!runtime || !ctx.ptyManager) break;
+      // Only into one of the Directories this client is shown (by real path):
+      // a launch starts Claude as the operator there.
+      if (!isListedDirectory(ctx, msg.directoryPath)) {
+        auditControl({
+          action: 'launchAgent',
+          client: ctx.local ? 'local' : 'remote',
+          outcome: 'refused-directory',
+        });
+        send({ type: 'controlRefused', action: 'launchAgent' });
+        break;
+      }
       // Permission posture is a persisted per-host setting, never a per-launch
       // field: the client sends only where to launch. Every launch comes from a
       // drawer row and carries its Directory's path; no directoryPath falls
@@ -191,7 +280,8 @@ export function handleClientMessage(
         { store, runtime, ptyManager: ctx.ptyManager, provider: claudeProvider },
         {
           directoryPath: msg.directoryPath as string | undefined,
-          bypassPermissions: adapter?.getSetting(KEY_BYPASS_PERMISSIONS, false) ?? false,
+          // This fork never skips permission checks, whatever an older config says.
+          bypassPermissions: false,
           palette: picked,
         },
       );
@@ -200,6 +290,12 @@ export function handleClientMessage(
       if (launched === null) break;
       const recent = recordCharacterUse(picked);
       if (recent) store.broadcast(recent);
+      auditControl({
+        action: 'launchAgent',
+        client: ctx.local ? 'local' : 'remote',
+        outcome: 'ok',
+        project: path.basename(String(msg.directoryPath)),
+      });
       break;
     }
 
@@ -238,11 +334,26 @@ export function handleClientMessage(
       if (!runtime || !ctx.ptyManager || !conversationProvider) break;
       const resume = resumeRequest(store, conversationProvider, msg);
       if (!resume) break;
+      if (!isListedDirectory(ctx, resume.directoryPath)) {
+        auditControl({
+          action: 'resumeConversation',
+          client: ctx.local ? 'local' : 'remote',
+          outcome: 'refused-directory',
+        });
+        send({ type: 'controlRefused', action: 'resumeConversation' });
+        break;
+      }
+      auditControl({
+        action: 'resumeConversation',
+        client: ctx.local ? 'local' : 'remote',
+        outcome: 'ok',
+      });
       launchStandaloneAgent(
         { store, runtime, ptyManager: ctx.ptyManager, provider: conversationProvider },
         {
           directoryPath: resume.directoryPath,
-          bypassPermissions: adapter?.getSetting(KEY_BYPASS_PERMISSIONS, false) ?? false,
+          // This fork never skips permission checks, whatever an older config says.
+          bypassPermissions: false,
           palette: resume.look?.palette,
           resume: {
             sessionId: resume.sessionId,
@@ -279,6 +390,45 @@ export function handleClientMessage(
       const agent = store.get(msg.id as number);
       if (agent?.projectRoot && typeof msg.label === 'string') {
         setProjectLabel(agent.projectRoot, msg.label);
+      }
+      break;
+    }
+
+    case 'setControlPin': {
+      // Only from this machine, so the PIN is never first set over the network.
+      const ok = ctx.local === true && isValidPinShape(msg.pin);
+      if (ok) setControlPin(msg.pin as string);
+      auditControl({
+        action: 'setControlPin',
+        client: ctx.local ? 'local' : 'remote',
+        outcome: ok ? 'ok' : 'refused',
+      });
+      send({ type: 'controlPinUpdated', ok, pinSet: isPinSet() });
+      break;
+    }
+
+    case 'approvePermission': {
+      // Control only (the gate above). The broker audits the answer.
+      const behavior = msg.behavior;
+      if (typeof msg.requestId === 'string' && (behavior === 'allow' || behavior === 'deny')) {
+        permissionBrokerFor(store)?.decide(msg.requestId, behavior, ctx.local ? 'local' : 'remote');
+      }
+      break;
+    }
+
+    case 'setApprovalOptIn': {
+      const agent = store.get(msg.id as number);
+      const root = agent?.projectRoot;
+      if (root && typeof msg.enabled === 'boolean') {
+        setApprovalEnabled(root, msg.enabled);
+        auditControl({
+          action: msg.enabled ? 'approvalOptIn' : 'approvalOptOut',
+          client: ctx.local ? 'local' : 'remote',
+          outcome: 'ok',
+          agentKey: agentKey(agent),
+          project: agent.directoryName,
+        });
+        store.broadcast(approvalOptInsMessage(store));
       }
       break;
     }
@@ -465,7 +615,9 @@ export function handleClientMessage(
 
     case 'setBypassPermissions': {
       if (typeof msg.enabled !== 'boolean' || !adapter) break;
-      adapter.setSetting(KEY_BYPASS_PERMISSIONS, msg.enabled);
+      // This fork never launches agents with permission checks skipped:
+      // turning it on is refused, turning it off always allowed.
+      adapter.setSetting(KEY_BYPASS_PERMISSIONS, false);
       // Every launch reads the persisted posture, so every office must show it:
       // a second tab still reading "off" would launch with the flag regardless.
       // Published as read back, so a failed write shows the truth, not the ask.
@@ -612,14 +764,9 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   // terminal socket would refuse it anyway -- better a disabled button that
   // says why than one that silently does nothing.
   if (ctx.ptyManager) {
-    const privileged = ctx.privileged === true;
-    send({
-      type: 'terminalAvailability',
-      available: privileged && ctx.ptyManager.isAvailable(),
-      reason:
-        ctx.ptyManager.unavailableReason() ??
-        (privileged ? undefined : TERMINAL_REQUIRES_TOKEN_REASON),
-    });
+    send(
+      terminalAvailabilityMessage(ctx.ptyManager, ctx.privileged === true, ctx.control === true),
+    );
   }
 
   // 2. Character profiles (the cast agents are drawn from), then the assets
@@ -780,13 +927,15 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   // client shows bare characters until each agent takes another turn.
   resendAgentActivity(send, store);
   sendLifecycleSnapshot(store, send);
+  if (ctx.privileged) send(approvalOptInsMessage(store));
+  permissionBrokerFor(store)?.snapshot(send);
 
   // 9. Re-announce live terminals AFTER existingAgents, so a browser that
   // reloaded (or a second tab) rebuilds its drawer tabs. The PTY outlives the
   // socket, so these sessions are still attachable and their scrollback replays
   // on connect. Privileged connections only: an untokened client was told the
   // terminal is unavailable and could not attach anyway.
-  if (ctx.ptyManager && ctx.privileged) {
+  if (ctx.ptyManager && ctx.privileged && ctx.control) {
     for (const id of agentIds) {
       if (ctx.ptyManager.has(id)) {
         send({ type: 'terminalSessionOpened', agentId: id });
@@ -816,7 +965,7 @@ function settingsSnapshot(adapter: StateAdapter | undefined) {
     hooksInfoShown: adapter?.getSetting(KEY_HOOKS_INFO_SHOWN, false) ?? false,
     externalAssetDirectories: readConfig().externalAssetDirectories,
     showAreas: adapter?.getSetting(KEY_SHOW_AREAS, false) ?? false,
-    bypassPermissions: adapter?.getSetting(KEY_BYPASS_PERMISSIONS, false) ?? false,
+    bypassPermissions: false,
     showHostDirectories: adapter?.getSetting(KEY_SHOW_HOST_DIRECTORIES, false) ?? false,
   } as const;
 }

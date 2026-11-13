@@ -198,7 +198,7 @@ function installEntries(): Promise<boolean> {
       }
       const entries = hooks[event];
       // Remove any existing Pixel Agents commands (in case the script path changed)
-      const filtered = (withoutOurEntries(entries) ?? entries).concat(makeHookEntry());
+      const filtered = (withoutOurEntries(entries) ?? entries).concat(makeHookEntry(event));
       if (JSON.stringify(filtered) !== JSON.stringify(entries)) {
         hooks[event] = filtered;
         changed = true;

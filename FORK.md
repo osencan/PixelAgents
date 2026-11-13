@@ -2,7 +2,7 @@
 
 This is a community fork of [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents) (based on v1.6.0) focused on **watching** several Claude Code and Codex sessions from a browser, including from other devices on your LAN. It is not affiliated with or endorsed by the upstream project; all credit for Pixel Agents itself goes to its authors. Licensed MIT, like upstream (see [LICENSE](LICENSE)).
 
-The fork keeps the upstream office and adds observation features. It does **not** add any way to control agents from the browser.
+The fork keeps the upstream office, adds observation features, and adds a guarded control surface: approving permission requests, hiring agents and typing into them. Control is limited to the server's machine, or to devices unlocked with a PIN, and every control action is audited.
 
 ## What it adds
 
@@ -33,6 +33,13 @@ The fork keeps the upstream office and adds observation features. It does **not*
 
 - Give each painted area a purpose: **Work**, **Rest**, **Waiting** or **Planning**. Idle agents go to the rest room (each to its own spaced tile) and sleep after a configurable delay of reported idle. Confirmed permission waits can walk to a waiting room. Claude sessions in plan mode can go to a planning room.
 
+**Agent controls (opt-in)**
+
+- **Who:** the token URL on the server's machine, or another device after **Filter → Agent controls → Unlock** with a 6–12 digit PIN (lockout after wrong tries, unlock expires when idle).
+- **Approve or deny** Claude permission requests from the panel. Approvals are opt-in per project, show the full request, and are signed with a machine-local key. The terminal prompt keeps working in parallel.
+- **Hire agents** into listed Directories and type into them in the terminal drawer.
+- **Skip-permissions is disabled.** Sessions you started in your own terminal can be messaged only through Claude's Remote Control (`claude --remote-control`).
+
 **Privacy on the LAN**
 
 - Viewers without the token are read-only and receive tool activity as categories only ("Running a command", "Editing a file"): never file names, commands or prompt text. Full detail is for the tokened page.
@@ -47,13 +54,13 @@ git clone https://github.com/osencan/PixelAgents.git
 cd PixelAgents
 npm ci
 npm run build
-node dist/cli.js --no-terminal                      # local only
-node dist/cli.js --host 192.168.1.20 --no-terminal   # also viewable on your LAN
+node dist/cli.js                                   # this machine only
+node dist/cli.js --host 192.168.1.20 --port 3100   # also reachable on your LAN
 ```
 
 The server prints a private URL with a token: use it to edit the office and see full details. Open the plain address (without the token) on other devices for a read-only view. Keep the token private.
 
-`--no-terminal` keeps the office watch-only (no launching agents from the browser), which is how this fork is meant to be used. Hook installation still asks for your consent in the browser, as upstream does.
+Add `--no-terminal` for a watch-only office (no hiring agents, no terminals); approvals still work. Hook installation asks for your consent in the browser, as upstream does. Over plain HTTP the token and PIN cross your network unencrypted; prefer HTTPS (e.g. `tailscale serve`) on untrusted networks.
 
 ## Developing
 

@@ -892,12 +892,34 @@ describe('clientMessageHandler: standalone terminal control plane', () => {
     };
   }
 
-  /** Tokened connection by default -- the terminal is a privileged surface, so
-   *  every happy path below is what a client that opened the CLI's URL sees.
-   *  The untokened cases pass `privileged: false` explicitly. */
+  /** Tokened CONTROL connection by default -- launching and closing agents
+   *  control them, so every happy path below is what the operator's own
+   *  machine (or a PIN-unlocked device) sees. Refusals pass overrides. */
   function ctx(overrides: Partial<ClientMessageContext> = {}): ClientMessageContext {
-    return { store, cache: null, privileged: true, ...overrides };
+    return { store, cache: null, privileged: true, control: true, local: true, ...overrides };
   }
+
+  let listedDir = '';
+  /** A launch into a listed Directory (launches go only into listed ones);
+   *  the Directory is listed on first use, without touching the messages the
+   *  test inspects. */
+  const launch = (extra: Record<string, unknown> = {}) => {
+    if (!listedDir) {
+      listedDir = fs.realpathSync(fs.mkdtempSync(path.join(tempHome, 'listed-')));
+      const keepSent = sent;
+      const keepBroadcasts = broadcasts;
+      sent = [];
+      broadcasts = [];
+      // Directory messages need the terminal surface (a ptyManager) to apply.
+      dispatch(
+        { type: 'saveDirectory', name: 'Listed', path: listedDir },
+        ctx({ ptyManager: workingPtyManager().manager }),
+      );
+      sent = keepSent;
+      broadcasts = keepBroadcasts;
+    }
+    return { type: 'launchAgent', directoryPath: listedDir, ...extra };
+  };
 
   function dispatch(msg: Record<string, unknown>, context: ClientMessageContext): void {
     handleClientMessage(msg, (m) => sent.push(m), context);
@@ -914,6 +936,7 @@ describe('clientMessageHandler: standalone terminal control plane', () => {
     sent = [];
     broadcasts = [];
     store.on('broadcast', (message) => broadcasts.push(message));
+    listedDir = '';
   });
 
   afterEach(() => {
@@ -1004,7 +1027,7 @@ describe('clientMessageHandler: standalone terminal control plane', () => {
   it('launchAgent spawns a PTY-backed agent and announces its terminal', () => {
     const { manager } = workingPtyManager();
 
-    dispatch({ type: 'launchAgent' }, ctx({ runtime, ptyManager: manager }));
+    dispatch(launch(), ctx({ runtime, ptyManager: manager }));
 
     expect(store.size).toBe(1);
     const id = [...store][0][0];
@@ -1015,7 +1038,7 @@ describe('clientMessageHandler: standalone terminal control plane', () => {
   it('launchAgent with a roster pick moves it to the front of the roster', () => {
     const { manager } = workingPtyManager();
 
-    dispatch({ type: 'launchAgent', palette: 2 }, ctx({ runtime, ptyManager: manager }));
+    dispatch(launch({ palette: 2 }), ctx({ runtime, ptyManager: manager }));
 
     expect(store.size).toBe(1);
     expect(readConfig().recentCharacters).toEqual([2]);
@@ -1027,7 +1050,7 @@ describe('clientMessageHandler: standalone terminal control plane', () => {
     // office's roster.
     const manager = PtySessionManager.disabled('Terminal disabled with --no-terminal.');
 
-    dispatch({ type: 'launchAgent', palette: 2 }, ctx({ runtime, ptyManager: manager }));
+    dispatch(launch({ palette: 2 }), ctx({ runtime, ptyManager: manager }));
 
     expect(store.size).toBe(0);
     expect(readConfig().recentCharacters ?? []).toEqual([]);
@@ -1037,47 +1060,33 @@ describe('clientMessageHandler: standalone terminal control plane', () => {
   it('launchAgent is ignored from an untokened client', () => {
     const { manager } = workingPtyManager();
 
-    dispatch({ type: 'launchAgent' }, ctx({ runtime, ptyManager: manager, privileged: false }));
+    dispatch(launch(), ctx({ runtime, ptyManager: manager, privileged: false }));
 
     expect(store.size).toBe(0);
     expect(broadcasts).toHaveLength(0);
   });
 
-  it('launchAgent applies the persisted permission posture, not a per-launch field', () => {
+  it('launchAgent never skips permission checks, whatever is asked or stored', () => {
     const { manager, spawnArgs } = workingPtyManager();
-
-    // Posture off: no flag, and a stale client field cannot turn it on — the
-    // launch message carries no bypass field any more.
-    dispatch(
-      { type: 'launchAgent', bypassPermissions: true },
-      ctx({ runtime, ptyManager: manager }),
-    );
+    dispatch(launch({ bypassPermissions: true }), ctx({ runtime, ptyManager: manager }));
+    // Even a posture stored by an older version is ignored.
+    store.getAdapter()!.setSetting('pixel-agents.bypassPermissions', true);
+    dispatch(launch(), ctx({ runtime, ptyManager: manager }));
     expect(spawnArgs[0]).not.toContain('--dangerously-skip-permissions');
-
-    // Posture on: every launch gets the flag without the client saying so.
-    dispatch({ type: 'setBypassPermissions', enabled: true }, ctx());
-    dispatch({ type: 'launchAgent' }, ctx({ runtime, ptyManager: manager }));
-    expect(spawnArgs[1]).toContain('--dangerously-skip-permissions');
+    expect(spawnArgs[1]).not.toContain('--dangerously-skip-permissions');
   });
 
-  it('setBypassPermissions persists via the adapter (standalone namespace)', () => {
+  it('refuses to turn bypass permissions on, and tells every office it is off', () => {
     dispatch({ type: 'setBypassPermissions', enabled: true }, ctx());
-    const adapter = store.getAdapter()!;
-    expect(adapter.getSetting('pixel-agents.bypassPermissions', false)).toBe(true);
-
-    dispatch({ type: 'setBypassPermissions', enabled: false }, ctx());
-    expect(adapter.getSetting('pixel-agents.bypassPermissions', true)).toBe(false);
-  });
-
-  it('setBypassPermissions publishes the accepted posture to every connected office', () => {
-    // Every launch reads the persisted posture, so an office still showing the
-    // old value would be launching with a flag its Settings says is off.
-    dispatch({ type: 'setBypassPermissions', enabled: true }, ctx());
-    expect(broadcasts).toContainEqual({ type: 'bypassPermissionsUpdated', enabled: true });
-
-    broadcasts = [];
-    dispatch({ type: 'setBypassPermissions', enabled: false }, ctx());
+    expect(store.getAdapter()!.getSetting('pixel-agents.bypassPermissions', true)).toBe(false);
     expect(broadcasts).toContainEqual({ type: 'bypassPermissionsUpdated', enabled: false });
+  });
+
+  it('a tokened client without control cannot launch or close agents', () => {
+    const { manager } = workingPtyManager();
+    dispatch(launch(), ctx({ runtime, ptyManager: manager, control: false, local: false }));
+    expect(store.size).toBe(0);
+    expect(sent).toContainEqual({ type: 'controlRefused', action: 'launchAgent' });
   });
 
   it('refuses setBypassPermissions from an unprivileged client and tells it the truth', () => {
@@ -1096,18 +1105,18 @@ describe('clientMessageHandler: standalone terminal control plane', () => {
     expect(sent).toContainEqual(
       expect.objectContaining({ type: 'settingsLoaded', bypassPermissions: false }),
     );
-    dispatch({ type: 'launchAgent' }, ctx({ runtime, ptyManager: manager }));
+    dispatch(launch(), ctx({ runtime, ptyManager: manager }));
     expect(spawnArgs[0]).not.toContain('--dangerously-skip-permissions');
   });
 
-  it('webviewReady reports the persisted permission posture in settingsLoaded', () => {
-    dispatch({ type: 'setBypassPermissions', enabled: true }, ctx());
+  it('webviewReady always reports bypass permissions off', () => {
+    store.getAdapter()!.setSetting('pixel-agents.bypassPermissions', true);
     sent = [];
 
     dispatch({ type: 'webviewReady' }, ctx());
 
     const settings = sent.find((m) => m.type === 'settingsLoaded');
-    expect(settings?.bypassPermissions).toBe(true);
+    expect(settings?.bypassPermissions).toBe(false);
   });
 
   // ── webviewReady: the host's own Directory ───────────────────
@@ -1332,17 +1341,19 @@ describe('clientMessageHandler: standalone terminal control plane', () => {
     }
   });
 
-  it('launchAgent falls back to the server cwd when no directoryPath is sent', () => {
-    const { manager } = workingPtyManager();
-
+  it('launchAgent refuses a missing or unlisted directory', () => {
+    const { manager, spawned } = workingPtyManager();
     dispatch({ type: 'launchAgent' }, ctx({ runtime, ptyManager: manager }));
-
-    const id = [...store][0][0];
-    expect(store.get(id)?.directoryName).toBe(path.basename(process.cwd()));
+    dispatch(
+      { type: 'launchAgent', directoryPath: tempHome },
+      ctx({ runtime, ptyManager: manager }),
+    );
+    expect(spawned).toHaveLength(0);
+    expect(sent.filter((m) => m.type === 'controlRefused')).toHaveLength(2);
   });
 
   it('launchAgent is ignored without a ptyManager', () => {
-    dispatch({ type: 'launchAgent' }, ctx({ runtime }));
+    dispatch(launch(), ctx({ runtime }));
 
     expect(store.size).toBe(0);
     expect(broadcasts).toHaveLength(0);

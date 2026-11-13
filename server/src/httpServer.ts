@@ -12,15 +12,28 @@ import type {
   ReloadAssetsSideEffect,
   SetHooksEnabledSideEffect,
 } from './clientMessageHandler.js';
-import { handleClientMessage } from './clientMessageHandler.js';
+import { handleClientMessage, terminalAvailabilityMessage } from './clientMessageHandler.js';
 import {
   HOOK_API_PREFIX,
   MAX_HOOK_BODY_SIZE,
+  PERMISSION_DECISION_PATH,
   USAGE_API_PREFIX,
   WS_CLOSE_FORBIDDEN_ORIGIN,
   WS_CLOSE_UNAUTHORIZED,
 } from './constants.js';
 import { applyReportedContext } from './contextUsage.js';
+import {
+  auditControl,
+  isLocalRequest,
+  isPinSet,
+  issueTicket,
+  revokeTicket,
+  setControlSocket,
+  touchTicket,
+  verifyControlPin,
+} from './controlPolicy.js';
+import { permissionBrokerFor } from './permissionBroker.js';
+import { PERMISSION_NONCE_HEADER, signDecision } from './permissionSignature.js';
 import { hookProviderById } from './providers/index.js';
 import { registerTerminalRoutes } from './terminal/terminalRoutes.js';
 import type { TerminalSessions } from './terminal/terminalSessions.js';
@@ -49,6 +62,8 @@ export interface HttpServerOptions {
   port?: number;
   /** Bearer auth token for hook and WebSocket endpoints */
   token: string;
+  /** Signs permission decisions (see ServerConfig.decisionKey); absent = no decisions. */
+  decisionKey?: string;
   /** AgentStateStore for WebSocket broadcast piping */
   store: AgentStateStore;
   /** Shared agent lifecycle core (for toggle side effects + standalone restore). Optional in embedded mode. */
@@ -121,6 +136,7 @@ export async function createHttpServer(options: HttpServerOptions): Promise<Http
 
   registerHealthRoute(app);
   registerHookRoute(app, options);
+  registerPermissionRoute(app, options);
   registerUsageRoute(app, options);
   registerWebSocketRoute(app, options, allowedHostnames);
   registerTerminalRoutes(app, {
@@ -150,6 +166,54 @@ function registerHealthRoute(app: FastifyInstance): void {
 
 // ── Hook Events ────────────────────────────────────────────────
 
+/**
+ * A PermissionRequest hook asking for a browser decision: processed like any
+ * hook event (the office shows the request), then held by the permission
+ * broker until answered, moved past, withdrawn or timed out. Replies
+ * `{decision: 'allow'|'deny'|null}`; null leaves the terminal prompt in charge.
+ */
+function registerPermissionRoute(app: FastifyInstance, options: HttpServerOptions): void {
+  app.post<{
+    Params: { providerId: string };
+    Body: Record<string, unknown>;
+  }>(
+    `${HOOK_API_PREFIX}/:providerId/${PERMISSION_DECISION_PATH}`,
+    {
+      preHandler: bearerAuth(options.token),
+      schema: {
+        params: {
+          type: 'object',
+          properties: { providerId: { type: 'string', pattern: '^[a-z0-9-]+$' } },
+          required: ['providerId'],
+        },
+      },
+    },
+    async (request, reply) => {
+      const { providerId } = request.params;
+      const event = request.body;
+      if (!event.session_id || !event.hook_event_name) return { decision: null };
+      options.onHookEvent?.(providerId, event);
+      const broker = permissionBrokerFor(options.store);
+      if (!broker || providerId !== 'claude') return { decision: null };
+      // The hook proves the answer came from this server: no nonce, no decision.
+      const nonce = request.headers[PERMISSION_NONCE_HEADER];
+      if (typeof nonce !== 'string' || nonce.length < 16 || !options.decisionKey) {
+        return { decision: null };
+      }
+      const decisionKey = options.decisionKey;
+      const decision = await broker.ask(event, (onAbort) => {
+        reply.raw.on('close', () => {
+          if (!reply.raw.writableFinished) onAbort();
+        });
+      });
+      return {
+        decision,
+        signature: decision ? signDecision(decisionKey, nonce, decision) : undefined,
+      };
+    },
+  );
+}
+
 function registerHookRoute(app: FastifyInstance, options: HttpServerOptions): void {
   app.post<{
     Params: { providerId: string };
@@ -174,6 +238,8 @@ function registerHookRoute(app: FastifyInstance, options: HttpServerOptions): vo
 
       if (event.session_id && event.hook_event_name) {
         options.onHookEvent?.(providerId, event);
+        // A session that moved on answered any held permission prompt itself.
+        permissionBrokerFor(options.store)?.observe(event);
       }
 
       reply.send('ok');
@@ -260,10 +326,52 @@ function registerWebSocketRoute(
     }
 
     const { store } = options;
+
+    // Control (answering permissions, launching, typing) is a tier above
+    // privilege: a tokened socket from this machine controls with the token
+    // alone; any other tokened socket must unlock with the control PIN, and its
+    // unlock lapses after an idle period (controlPolicy.ts).
+    const local = isLocalRequest(request.socket.remoteAddress, request.headers);
+    let control = privileged && local;
+    let ticket: string | undefined;
+    let unlockError: string | undefined;
+    let lockedUntil: number | undefined;
+    const sendControlAccess = () => {
+      setControlSocket(socket, control);
+      // Terminals follow control: unlocking (or locking) opens (or closes) them here.
+      if (options.ptyManager && !options.embedded) {
+        send(terminalAvailabilityMessage(options.ptyManager, privileged, control));
+      }
+      send({
+        type: 'controlAccess',
+        control,
+        local,
+        pinSet: isPinSet(),
+        ticket,
+        error: unlockError,
+        lockedUntil,
+      });
+    };
+    const clientKind = local ? 'local' : 'remote';
+    /** A remote unlock is valid while its ticket is (sliding idle expiry). */
+    const hasControl = () => {
+      if (!control || local) return control;
+      if (touchTicket(ticket)) return true;
+      control = false;
+      ticket = undefined;
+      sendControlAccess();
+      return false;
+    };
     // Every message to this socket goes through here: read-only viewers get
     // tool activity as broad categories, never file names or commands.
-    const send = (message: Record<string, unknown>) =>
+    const send = (message: Record<string, unknown>) => {
+      // The full request behind an approval is for connections that may answer it.
+      if (message.type === 'agentPermissionPending' && !control && 'detail' in message) {
+        const { detail: _detail, ...rest } = message;
+        message = rest;
+      }
       safeSend(socket, privileged ? message : redactForViewer(message));
+    };
 
     // Pipe store events to WebSocket client
     const onAgentAdded = (id: number, agent: AgentState) => {
@@ -283,6 +391,7 @@ function registerWebSocketRoute(
     store.on('agentAdded', onAgentAdded);
     store.on('agentRemoved', onAgentRemoved);
     store.on('broadcast', onBroadcast);
+    if (!options.embedded) sendControlAccess();
 
     // Handle incoming client messages
     socket.on('message', (data: Buffer | string) => {
@@ -290,6 +399,35 @@ function registerWebSocketRoute(
         const msg = JSON.parse(data.toString()) as Record<string, unknown>;
         if (!options.embedded && msg.type) {
           console.log('[Pixel Agents] WS client message:', msg.type);
+        }
+        if (!options.embedded && privileged && msg.type === 'unlockControl') {
+          if (local) {
+            control = true;
+          } else {
+            const verdict = verifyControlPin(msg.pin, request.socket.remoteAddress ?? '');
+            unlockError = verdict.ok ? undefined : verdict.reason;
+            lockedUntil = verdict.ok ? undefined : verdict.lockedUntil;
+            if (verdict.ok) {
+              ticket = issueTicket();
+              control = true;
+            }
+            auditControl({
+              action: 'unlock',
+              client: clientKind,
+              outcome: verdict.ok ? 'ok' : verdict.reason,
+            });
+          }
+          sendControlAccess();
+          return;
+        }
+        if (!options.embedded && msg.type === 'lockControl') {
+          if (!local) {
+            revokeTicket(ticket);
+            ticket = undefined;
+            control = false;
+          }
+          sendControlAccess();
+          return;
         }
         handleClientMessage(msg, send, {
           store,
@@ -299,6 +437,9 @@ function registerWebSocketRoute(
           onReloadAssets: options.onReloadAssets,
           packageRoot: options.packageRoot,
           privileged,
+          // Embedded (VS Code) keeps upstream behavior: the editor is local.
+          control: options.embedded ? privileged : privileged && hasControl(),
+          local,
           ptyManager: options.ptyManager,
         });
       } catch {
@@ -307,6 +448,7 @@ function registerWebSocketRoute(
     });
 
     socket.on('close', () => {
+      setControlSocket(socket, false);
       store.off('agentAdded', onAgentAdded);
       store.off('agentRemoved', onAgentRemoved);
       store.off('broadcast', onBroadcast);

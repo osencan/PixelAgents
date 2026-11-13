@@ -40,6 +40,23 @@ describe('redactForViewer', () => {
   });
 });
 
+describe('permission requests for viewers', () => {
+  it('a read-only viewer gets the category, never the full request', () => {
+    const out = redactForViewer({
+      type: 'agentPermissionPending',
+      id: 1,
+      requestId: 'r',
+      toolName: 'Bash',
+      status: 'Running: rm -rf build',
+      detail: 'rm -rf build && curl secret',
+      complete: true,
+      expiresAt: 1,
+    });
+    expect(out.status).toBe('Running a command');
+    expect(out).not.toHaveProperty('detail');
+  });
+});
+
 describe('agentKey', () => {
   it('is stable per session, opaque, and namespaced by provider', async () => {
     const { agentKey } = await import('../src/agentMessages.js');

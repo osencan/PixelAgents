@@ -9,6 +9,8 @@
 const TOOL_STATUS_MESSAGE_TYPES: ReadonlySet<string> = new Set([
   'agentToolStart',
   'subagentToolStart',
+  // What a permission request asks for (e.g. the command to approve).
+  'agentPermissionPending',
 ]);
 
 const SUBTASK_PREFIX = 'Subtask:';
@@ -41,5 +43,6 @@ export function redactForViewer(message: Record<string, unknown>): Record<string
   if (!TOOL_STATUS_MESSAGE_TYPES.has(String(message.type))) return message;
   if (typeof message.status !== 'string') return message;
   const toolName = typeof message.toolName === 'string' ? message.toolName : undefined;
-  return { ...message, status: toolStatusCategory(message.status, toolName) };
+  const { detail: _detail, ...rest } = message;
+  return { ...rest, status: toolStatusCategory(message.status, toolName) };
 }

@@ -21,10 +21,14 @@ import { getAgentHistory } from '../office/agentHistory.js';
 import { getAgentLifecycle, lifecycleText } from '../office/agentLifecycles.js';
 import { getAgentRole, setAgentRole, useAgentRolesVersion } from '../office/agentRoles.js';
 import { checkText } from '../office/checkResults.js';
+import { getControlAccess, isApprovalOptedIn, useControlVersion } from '../office/controlAccess.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setAgentHidden, useIsAgentHidden } from '../office/hiddenAgents.js';
+import { getPendingPermission, usePermissionsVersion } from '../office/permissionRequests.js';
 import { projectAccent } from '../office/projectPrefs.js';
 import type { ToolActivity } from '../office/types.js';
+import { transport } from '../transport/index.js';
+import { PermissionButtons } from './PermissionButtons.js';
 import { Button } from './ui/Button.js';
 import { PixelIcon } from './ui/PixelIcon.js';
 
@@ -38,6 +42,8 @@ interface AgentDetailPanelProps {
   mobile: boolean;
   /** Close the panel only (deselects the character). */
   onClose: () => void;
+  /** Launched by the office (its terminal is in the drawer), not observed. */
+  ownedByOffice?: boolean;
   /** Pin a project display name for every viewer; absent for read-only viewers. */
   onSetProjectLabel?: (agentId: number, label: string) => void;
 }
@@ -92,6 +98,7 @@ export function AgentDetailPanel({
   mobile,
   onClose,
   onSetProjectLabel,
+  ownedByOffice = false,
 }: AgentDetailPanelProps) {
   // Character state is imperative (the game loop mutates it): poll it.
   const [now, setNow] = useState(() => Date.now());
@@ -103,6 +110,12 @@ export function AgentDetailPanel({
   // Hiding is this viewer's choice only: the agent keeps working and its card
   // stays in the stack, faded, until unhidden here.
   const hidden = useIsAgentHidden(agentId);
+
+  // Agent control for this connection (approval opt-in switch, answers).
+  useControlVersion();
+  usePermissionsVersion();
+  const pendingRequest = getPendingPermission(agentId);
+  const controlAccess = getControlAccess();
 
   // The viewer's role badge for this agent (per browser).
   useAgentRolesVersion();
@@ -245,8 +258,10 @@ export function AgentDetailPanel({
           >
             <span className="font-bold">Needs your approval</span>
             <span className="break-words">
-              {approvalTool ? approvalTool.status : 'Check the agent’s terminal'}
+              {pendingRequest?.status ??
+                (approvalTool ? approvalTool.status : 'Check the agent’s terminal')}
             </span>
+            {pendingRequest && <PermissionButtons request={pendingRequest} now={now} />}
           </div>
         )}
       </div>
@@ -303,6 +318,30 @@ export function AgentDetailPanel({
           </Row>
         )}
         {ch.projectWorktree && <Row label="Worktree">{ch.projectWorktree}</Row>}
+        {controlAccess.control && !ch.isSubagent && ch.directoryName && (
+          <Row label="Approvals">
+            <label className="flex items-center gap-4 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isApprovalOptedIn(agentId)}
+                onChange={(e) =>
+                  transport.send({
+                    type: 'setApprovalOptIn',
+                    id: agentId,
+                    enabled: e.target.checked,
+                  })
+                }
+              />
+              <span className="leading-tight">from the browser, for this project</span>
+            </label>
+          </Row>
+        )}
+        {controlAccess.control && !ch.isSubagent && !ownedByOffice && (
+          <span className="text-text-muted leading-tight" data-testid="remote-control-hint">
+            Started in your own terminal, so the office can't type into it. To send it messages from
+            a browser or phone, start Claude with <code>claude --remote-control</code>.
+          </span>
+        )}
         {!ch.isSubagent && (
           <Row label="Role">
             <span className="flex flex-wrap items-center gap-4">

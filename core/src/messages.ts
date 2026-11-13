@@ -20,6 +20,12 @@ export type ServerMessage =
   | AgentHistory
   | AgentDirectoryChanged
   | AgentKeyChanged
+  | ControlAccess
+  | ControlPinUpdated
+  | ControlRefused
+  | ApprovalOptIns
+  | AgentPermissionPending
+  | AgentPermissionResolved
   | AgentToolStart
   | AgentToolDone
   | AgentToolsClear
@@ -69,6 +75,11 @@ export type ClientMessage =
   | SaveAgentSeats
   | SaveLayout
   | SetProjectLabel
+  | UnlockControl
+  | LockControl
+  | SetControlPin
+  | SetApprovalOptIn
+  | ApprovePermission
   | SaveCharacterProfiles
   | SetSoundEnabled
   | SetLastSeenVersion
@@ -221,6 +232,54 @@ export interface AgentKeyChanged {
   agentKey: string;
   previousKey: string;
 }
+
+export interface ControlAccess {
+  type: 'controlAccess';
+  control: boolean;
+  local: boolean;
+  pinSet: boolean;
+  ticket?: string;
+  error?: AnonymousSchema_72;
+  lockedUntil?: number;
+}
+
+export type AnonymousSchema_72 = 'wrong' | 'locked' | 'no-pin';
+
+export interface ControlPinUpdated {
+  type: 'controlPinUpdated';
+  ok: boolean;
+  pinSet: boolean;
+}
+
+export interface ControlRefused {
+  type: 'controlRefused';
+  action: string;
+}
+
+export interface ApprovalOptIns {
+  type: 'approvalOptIns';
+  agentIds: number[];
+}
+
+export interface AgentPermissionPending {
+  type: 'agentPermissionPending';
+  id: number;
+  requestId: string;
+  toolName: string;
+  status: string;
+  detail?: string;
+  complete?: boolean;
+  expiresAt: number;
+}
+
+export interface AgentPermissionResolved {
+  type: 'agentPermissionResolved';
+  id: number;
+  requestId: string;
+  outcome: AnonymousSchema_93;
+}
+
+export type AnonymousSchema_93 = 'allow' | 'deny' | 'timeout' | 'withdrawn' | 'elsewhere';
 
 export interface AgentToolStart {
   type: 'agentToolStart';
@@ -648,6 +707,34 @@ export interface SetProjectLabel {
   id: number;
   label: string;
 }
+
+export interface UnlockControl {
+  type: 'unlockControl';
+  pin?: string;
+}
+
+export interface LockControl {
+  type: 'lockControl';
+}
+
+export interface SetControlPin {
+  type: 'setControlPin';
+  pin: string;
+}
+
+export interface SetApprovalOptIn {
+  type: 'setApprovalOptIn';
+  id: number;
+  enabled: boolean;
+}
+
+export interface ApprovePermission {
+  type: 'approvePermission';
+  requestId: string;
+  behavior: AnonymousSchema_390;
+}
+
+export type AnonymousSchema_390 = 'allow' | 'deny';
 
 export interface SaveCharacterProfiles {
   type: 'saveCharacterProfiles';

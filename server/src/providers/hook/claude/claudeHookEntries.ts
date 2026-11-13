@@ -9,7 +9,7 @@
 
 import { isDeepStrictEqual } from 'util';
 
-import { HOOK_SCRIPTS_DIR } from '../../../constants.js';
+import { HOOK_SCRIPTS_DIR, PERMISSION_HOOK_TIMEOUT_S } from '../../../constants.js';
 import { bundledScriptPath } from './bundledScripts.js';
 import { commandRunsScript } from './commandIdentity.js';
 import { CLAUDE_HOOK_SCRIPT_NAME, LEGACY_HOOK_SCRIPT_NAME } from './constants.js';
@@ -104,15 +104,17 @@ function makeHookCommand(): string {
   return `node "${scriptPath}"`;
 }
 
-/** Create a hook entry object for Claude's settings.json. Matcher is empty (catch-all). */
-export function makeHookEntry(): ClaudeHookEntry {
+/** Create a hook entry object for Claude's settings.json. Matcher is empty
+ *  (catch-all). PermissionRequest may wait for a browser answer, so its
+ *  timeout covers the server's hold; every other event returns at once. */
+export function makeHookEntry(event?: string): ClaudeHookEntry {
   return {
     matcher: '',
     hooks: [
       {
         type: 'command',
         command: makeHookCommand(),
-        timeout: 5,
+        timeout: event === 'PermissionRequest' ? PERMISSION_HOOK_TIMEOUT_S : 5,
       },
     ],
   };

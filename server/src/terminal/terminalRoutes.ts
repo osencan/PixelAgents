@@ -25,8 +25,18 @@ import {
   WS_CLOSE_NO_SESSION,
   WS_CLOSE_UNAUTHORIZED,
 } from '../constants.js';
+import {
+  auditControl,
+  isLocalRequest,
+  isTicketValid,
+  touchTicket,
+  watchTicket,
+} from '../controlPolicy.js';
 import { isAllowedWebSocketOrigin, standaloneHandshakeVerdict } from '../wsAuth.js';
 import type { TerminalSessions } from './terminalSessions.js';
+
+/** How often an open remote terminal re-checks that its unlock is still valid. */
+const TERMINAL_TICKET_CHECK_MS = 5000;
 
 export interface TerminalRoutesOptions {
   token: string;
@@ -80,6 +90,16 @@ export function registerTerminalRoutes(app: FastifyInstance, options: TerminalRo
         !isAllowedWebSocketOrigin(request.headers.origin, request.headers.host)
       ) {
         socket.close(WS_CLOSE_FORBIDDEN_ORIGIN, 'forbidden origin');
+        return;
+      }
+
+      // A terminal controls an agent: this machine with the token, or another
+      // device presenting the ticket from its control PIN unlock.
+      const local = isLocalRequest(request.socket.remoteAddress, request.headers);
+      const ticket = new URL(request.url, 'http://local').searchParams.get('ticket') ?? undefined;
+      if (!local && !touchTicket(ticket)) {
+        auditControl({ action: 'terminal-attach', client: 'remote', outcome: 'refused' });
+        socket.close(WS_CLOSE_UNAUTHORIZED, 'control required');
         return;
       }
 
@@ -139,9 +159,26 @@ export function registerTerminalRoutes(app: FastifyInstance, options: TerminalRo
         preReplay.length = 0;
       });
 
+      // A remote terminal lives only as long as its unlock: revoking it (Lock,
+      // a new PIN) closes the socket at once, and expiry is checked on a timer,
+      // so neither output nor input outlives control.
+      const endRemote = (reason: string) => socket.close(WS_CLOSE_UNAUTHORIZED, reason);
+      const stopWatching =
+        !local && ticket ? watchTicket(ticket, () => endRemote('control revoked')) : () => {};
+      const expiryTimer = local
+        ? undefined
+        : setInterval(() => {
+            if (!isTicketValid(ticket)) endRemote('control expired');
+          }, TERMINAL_TICKET_CHECK_MS);
+
       socket.on('message', (raw: Buffer | string) => {
         const frame = parseClientFrame(raw.toString());
         if (!frame) return; // Malformed/unknown frames are ignored, never thrown on.
+        // Typing counts as use (keeps the unlock alive); resizing only needs it valid.
+        if (!local && !(frame.type === 'input' ? touchTicket(ticket) : isTicketValid(ticket))) {
+          endRemote('control expired');
+          return;
+        }
         if (frame.type === 'input') {
           session.write(frame.data);
         } else {
@@ -150,6 +187,8 @@ export function registerTerminalRoutes(app: FastifyInstance, options: TerminalRo
       });
 
       socket.on('close', () => {
+        stopWatching();
+        if (expiryTimer) clearInterval(expiryTimer);
         // Detach only. The PTY outlives the socket so a reload reattaches to the
         // still-running Claude session; only closeAgent (or the process exiting)
         // ends it.
