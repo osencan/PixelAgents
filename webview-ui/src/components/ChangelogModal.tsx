@@ -2,6 +2,7 @@ import {
   CHANGELOG_REPO_URL,
   changelogEntries,
   ISSUES_URL,
+  SPONSOR_URL,
   toMajorMinor,
 } from '../changelogData.ts';
 import { Modal } from './ui/Modal.js';
@@ -98,6 +99,14 @@ export function ChangelogModal({ isOpen, onClose, currentVersion }: ChangelogMod
           className="flex-1 py-6 px-10 flex items-center justify-center gap-12 text-lg no-underline cursor-pointer transition-colors duration-200 hover:text-accent-bright"
         >
           Report an issue
+        </a>
+        <a
+          href={SPONSOR_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 py-6 px-10 border-l border-border flex items-center justify-center gap-12 text-lg no-underline cursor-pointer transition-colors duration-200 hover:text-accent-bright"
+        >
+          Sponsor
         </a>
       </div>
     </Modal>

@@ -25,6 +25,8 @@ export const CHANGELOG_REPO_URL = 'https://github.com/osencan/PixelAgents';
 
 export const ISSUES_URL = `${CHANGELOG_REPO_URL}/issues`;
 
+export const SPONSOR_URL = 'https://github.com/sponsors/osencan';
+
 export const changelogEntries: ChangelogEntry[] = [
   {
     version: '2.0',
