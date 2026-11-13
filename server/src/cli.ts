@@ -39,6 +39,7 @@ import {
 } from './constants.js';
 import { startApprovalOptInBroadcaster } from './controlPolicy.js';
 import { FileStateAdapter } from './fileStateAdapter.js';
+import { setShowSubtaskAgents } from './fileWatcher.js';
 import { startPermissionBroker } from './permissionBroker.js';
 import {
   claudeProvider,
@@ -453,6 +454,7 @@ async function main(): Promise<void> {
     // scanners grow per-provider awareness alongside the Settings UI.
     runtime.hooksEnabled.current = getHooksEnabled(claudeProvider.id);
     runtime.watchAllSessions.current = adapter.getSetting('pixel-agents.watchAllSessions', false);
+    setShowSubtaskAgents(adapter.getSetting('pixel-agents.showSubtaskAgents', false));
 
     // Install hooks on startup if the persisted setting says so — gated on the
     // one-time consent to modify ~/.claude/settings.json.

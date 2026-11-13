@@ -39,6 +39,8 @@ import {
   EXTERNAL_SCAN_INTERVAL_MS,
   EXTERNAL_STALE_CHECK_INTERVAL_MS,
   FILE_WATCHER_POLL_INTERVAL_MS,
+  FORK_ADOPT_RECENT_MS,
+  FORK_STALE_MS,
   GLOBAL_SCAN_ACTIVE_MAX_AGE_MS,
   GLOBAL_SCAN_ACTIVE_MIN_SIZE,
   PROJECT_SCAN_INTERVAL_MS,
@@ -646,6 +648,8 @@ export function scanForTeammateFiles(
     // -> watched sub-agent. Adopting them here would race that classification
     // and mint a spurious teammate.
     if (parentAgent && parentLive && liveSpawnToolIdOf(parentAgent, parentLive, teammate)) continue;
+    // Forks belong to scanForForkAgentFiles (adopted while running, removed when finished).
+    if (teammate.isFork) continue;
     if (knownTeammateFiles.has(file)) continue;
 
     // Also check if any existing agent already tracks this file
@@ -921,6 +925,116 @@ export function scanForBackgroundAgentFiles(
   }
 }
 
+/** Milliseconds since a transcript was last written, or null when it is gone. */
+function msSinceWrite(file: string, now: number): number | null {
+  try {
+    return now - fs.statSync(file).mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Forks of a lead's conversation (Claude Code's /subtask): they run in the
+ * lead's process and write a sidecar-tagged transcript under its `subagents/`
+ * folder like background spawns, but with NO spawn tool call (`isFork`, no
+ * toolUseId), so the background-spawn flow never matches them. A running fork
+ * becomes a named character linked to its lead; it leaves when its sidecar
+ * says finished, its transcript disappears, or it stops writing for
+ * FORK_STALE_MS. Only transcripts written within FORK_ADOPT_RECENT_MS are
+ * adopted, so a crashed fork from long ago never appears.
+ */
+/** Experimental, off by default (Settings → Show Subtasks as Agents). */
+let forkAgentsEnabled = false;
+
+/** Turn fork characters on or off. Off removes the ones shown now. */
+export function setShowSubtaskAgents(enabled: boolean, agents?: AgentStateStore): void {
+  forkAgentsEnabled = enabled;
+  if (enabled || !agents) return;
+  for (const [id, agent] of [...agents]) {
+    if (agent.isFork) teammateRemovalCallback?.(id);
+  }
+}
+
+export function scanForForkAgentFiles(
+  leadId: number,
+  agents: AgentStateStore,
+  nextAgentIdRef: { current: number },
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  onAgentCreated?: (agent: AgentState) => void,
+  now = Date.now(),
+): void {
+  if (!teamProvider || !forkAgentsEnabled) return;
+  const lead = agents.get(leadId);
+  if (!lead || !lead.sessionId || !lead.projectDir) return;
+
+  const forks = teamProvider
+    .discoverTeammates(lead.projectDir, lead.sessionId)
+    .filter((entry) => entry.isFork);
+  const tracked = [...agents].filter(([, a]) => a.isFork && a.leadAgentId === leadId);
+
+  // Leave: finished, gone, or silent too long.
+  for (const [id, agent] of tracked) {
+    const entry = forks.find((f) => pathsMatch(f.jsonlPath, agent.jsonlFile));
+    const age = msSinceWrite(agent.jsonlFile, now);
+    if (!entry || entry.finished || age === null || age > FORK_STALE_MS) {
+      teammateRemovalCallback?.(id);
+    }
+  }
+
+  for (const fork of forks) {
+    if (fork.finished) continue;
+    if (tracked.some(([, a]) => pathsMatch(a.jsonlFile, fork.jsonlPath))) continue;
+    const age = msSinceWrite(fork.jsonlPath, now);
+    if (age === null || age > FORK_ADOPT_RECENT_MS) continue;
+
+    const id = nextAgentIdRef.current++;
+    const agent = createAgentState({
+      id,
+      // Same process and session as the lead; never registered with the
+      // session router (it would take the lead's hook events).
+      sessionId: lead.sessionId,
+      isExternal: true,
+      projectDir: lead.projectDir,
+      jsonlFile: fork.jsonlPath,
+      lastDataAt: now,
+      agentName: fork.name ?? 'fork',
+      leadAgentId: leadId,
+      isFork: true,
+      // Same working directory as its lead: the same project label.
+      directoryName: lead.directoryName,
+      projectRoot: lead.projectRoot,
+      projectWorktree: lead.projectWorktree,
+    });
+    if (lead.palette !== undefined) {
+      agent.palette = lead.palette;
+      agent.repeat = lead.repeat ?? 0;
+    } else {
+      assignPaletteIfNeeded(agent, agents);
+    }
+    agents.set(id, agent);
+
+    console.log(
+      `[Pixel Agents] Fork detected: "${agent.agentName}" (Agent ${id}) for lead Agent ${leadId} (${path.basename(fork.jsonlPath)})`,
+    );
+    onAgentCreated?.(agent);
+
+    startFileWatching(
+      id,
+      fork.jsonlPath,
+      agents,
+      fileWatchers,
+      pollingTimers,
+      waitingTimers,
+      permissionTimers,
+    );
+    readNewLines(id, agents, waitingTimers, permissionTimers);
+  }
+}
+
 /**
  * Scan team config files (via the active TeamProvider) to detect teammate
  * dismissals. A teammate is considered dismissed if:
@@ -997,6 +1111,17 @@ export function scanAllTeammateFiles(
       waitingTimers,
       permissionTimers,
       persistAgents,
+      onAgentCreated,
+    );
+    // Forks (/subtask): no spawn tool call, adopted from their sidecar.
+    scanForForkAgentFiles(
+      agentId,
+      agents,
+      nextAgentIdRef,
+      fileWatchers,
+      pollingTimers,
+      waitingTimers,
+      permissionTimers,
       onAgentCreated,
     );
     // Gate: basic-mode agents never get teamName set. Real team leads do, via JSONL.

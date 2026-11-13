@@ -23,9 +23,14 @@ function sidecarPath(jsonlPath: string): string {
 /** Parse a sidecar's metadata: `agentType` (required), plus `toolUseId`,
  *  `description`, and `name` when present (background agents record the first
  *  three; a NAMED teamless spawn additionally records `name`). */
-function parseSidecarMeta(
-  jsonlPath: string,
-): { agentType: string; toolUseId?: string; description?: string; name?: string } | null {
+function parseSidecarMeta(jsonlPath: string): {
+  agentType: string;
+  toolUseId?: string;
+  description?: string;
+  name?: string;
+  isFork?: boolean;
+  finished?: boolean;
+} | null {
   const metaPath = sidecarPath(jsonlPath);
   try {
     const raw = fs.readFileSync(metaPath, 'utf-8');
@@ -34,6 +39,8 @@ function parseSidecarMeta(
       toolUseId?: unknown;
       description?: unknown;
       name?: unknown;
+      isFork?: unknown;
+      finished?: unknown;
     };
     if (typeof data.agentType !== 'string') return null;
     return {
@@ -41,6 +48,8 @@ function parseSidecarMeta(
       toolUseId: typeof data.toolUseId === 'string' ? data.toolUseId : undefined,
       description: typeof data.description === 'string' ? data.description : undefined,
       name: typeof data.name === 'string' ? data.name : undefined,
+      isFork: data.isFork === true || undefined,
+      finished: data.finished === true || undefined,
     };
   } catch {
     return null;
@@ -262,6 +271,8 @@ export const claudeTeamProvider: TeamProvider = {
       taskId?: string;
       description?: string;
       name?: string;
+      isFork?: boolean;
+      finished?: boolean;
     }> = [];
 
     // Old-style: sidecar-tagged transcripts under <projectDir>/<leadSessionId>/subagents/.
@@ -284,6 +295,8 @@ export const claudeTeamProvider: TeamProvider = {
           taskId: AGENT_TRANSCRIPT_NAME.exec(entry)?.[1],
           description: meta.description,
           name: meta.name,
+          isFork: meta.isFork,
+          finished: meta.finished,
         });
       }
     }

@@ -24,6 +24,8 @@ interface SettingsModalProps {
   externalAssetDirectories: string[];
   watchAllSessions: boolean;
   onToggleWatchAllSessions: () => void;
+  showSubtaskAgents: boolean;
+  onToggleShowSubtaskAgents: () => void;
   /** ACTUAL install state (the hooksStatus message), not the hooksEnabled
    *  preference. The preference defaults to true while first-run consent is
    *  still pending, so binding the checkbox to it renders "on" over an empty
@@ -60,6 +62,8 @@ export function SettingsModal({
   externalAssetDirectories,
   watchAllSessions,
   onToggleWatchAllSessions,
+  showSubtaskAgents,
+  onToggleShowSubtaskAgents,
   hooksInstalled,
   onToggleHooksEnabled,
   showAreas,
@@ -211,6 +215,12 @@ export function SettingsModal({
           label="Watch All Sessions"
           checked={watchAllSessions}
           onChange={onToggleWatchAllSessions}
+        />
+        <Checkbox
+          label="Show Subtasks as Agents (experimental)"
+          title="Each running /subtask gets its own character beside its session's agent, and leaves when it finishes"
+          checked={showSubtaskAgents}
+          onChange={onToggleShowSubtaskAgents}
         />
         <Checkbox
           label="Instant Detection (Hooks)"

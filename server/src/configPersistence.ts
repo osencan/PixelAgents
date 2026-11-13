@@ -15,6 +15,7 @@ export interface AdapterSettings {
   alwaysShowLabels: boolean;
   ghostHeadlessAgents: boolean;
   watchAllSessions: boolean;
+  showSubtaskAgents: boolean;
   hooksInfoShown: boolean;
   showAreas: boolean;
   areaMappings: Record<string, string[]>;
@@ -35,6 +36,7 @@ export const ADAPTER_SETTING_KEYS = [
   'alwaysShowLabels',
   'ghostHeadlessAgents',
   'watchAllSessions',
+  'showSubtaskAgents',
   'hooksInfoShown',
   'showAreas',
   'areaMappings',
@@ -92,6 +94,7 @@ const DEFAULT_ADAPTER_SETTINGS: AdapterSettings = {
   alwaysShowLabels: false,
   ghostHeadlessAgents: false,
   watchAllSessions: false,
+  showSubtaskAgents: false,
   hooksInfoShown: false,
   showAreas: false,
   areaMappings: {},
@@ -215,6 +218,10 @@ function parseAdapterSettings(raw: unknown): AdapterSettings {
       typeof obj.watchAllSessions === 'boolean'
         ? obj.watchAllSessions
         : DEFAULT_ADAPTER_SETTINGS.watchAllSessions,
+    showSubtaskAgents:
+      typeof obj.showSubtaskAgents === 'boolean'
+        ? obj.showSubtaskAgents
+        : DEFAULT_ADAPTER_SETTINGS.showSubtaskAgents,
     hooksInfoShown:
       typeof obj.hooksInfoShown === 'boolean'
         ? obj.hooksInfoShown

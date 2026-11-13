@@ -105,7 +105,12 @@ export class SessionRouter {
   // ── Private ────────────────────────────────────────────────────────
 
   private flushBuffered(sessionId: string): BufferedEvent[] {
-    const toFlush = this.buffer.filter((b) => b.event.session_id === sessionId);
+    // Expired events are dropped here too, not only by the prune timer: its
+    // tick can land just short of the cutoff and keep an event one more cycle.
+    const cutoff = Date.now() - HOOK_EVENT_BUFFER_MS;
+    const toFlush = this.buffer.filter(
+      (b) => b.event.session_id === sessionId && b.timestamp > cutoff,
+    );
     this.buffer = this.buffer.filter((b) => b.event.session_id !== sessionId);
     this.cleanupBufferTimer();
     return toFlush;

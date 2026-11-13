@@ -145,6 +145,8 @@ interface ExtensionMessageState {
   extensionVersion: string;
   watchAllSessions: boolean;
   setWatchAllSessions: (v: boolean) => void;
+  showSubtaskAgents: boolean;
+  setShowSubtaskAgents: (v: boolean) => void;
   alwaysShowLabels: boolean;
   ghostHeadlessAgents: boolean;
   setGhostHeadlessAgents: (v: boolean) => void;
@@ -235,6 +237,7 @@ export function useExtensionMessages(
   const [lastSeenVersion, setLastSeenVersion] = useState('');
   const [extensionVersion, setExtensionVersion] = useState('');
   const [watchAllSessions, setWatchAllSessions] = useState(false);
+  const [showSubtaskAgents, setShowSubtaskAgents] = useState(false);
   const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
   const [ghostHeadlessAgents, setGhostHeadlessAgentsState] = useState(false);
   const [hooksEnabled, setHooksEnabled] = useState(true);
@@ -483,6 +486,7 @@ export function useExtensionMessages(
             ch.leadAgentId = teammateParentId;
             ch.teamName = teamName ?? parentCh?.teamName;
             ch.agentName = teammateName;
+            ch.isSubtask = msg.isSubtask === true || undefined;
           }
         } else {
           const palette = msg.palette as number | undefined;
@@ -946,6 +950,9 @@ export function useExtensionMessages(
         if (typeof msg.watchAllSessions === 'boolean') {
           setWatchAllSessions(msg.watchAllSessions as boolean);
         }
+        if (typeof msg.showSubtaskAgents === 'boolean') {
+          setShowSubtaskAgents(msg.showSubtaskAgents as boolean);
+        }
         if (typeof msg.alwaysShowLabels === 'boolean') {
           setAlwaysShowLabels(msg.alwaysShowLabels as boolean);
         }
@@ -1047,6 +1054,8 @@ export function useExtensionMessages(
           msg.leadAgentId as number | undefined,
           msg.teamUsesTmux as boolean | undefined,
         );
+        const teamCh = os.characters.get(id);
+        if (teamCh) teamCh.isSubtask = msg.isSubtask === true || undefined;
       } else if (msg.type === 'agentContextUsage') {
         const id = msg.id as number;
         os.setAgentContext(id, msg.contextTokens as number, msg.maxContextTokens as number);
@@ -1106,6 +1115,8 @@ export function useExtensionMessages(
     extensionVersion,
     watchAllSessions,
     setWatchAllSessions,
+    showSubtaskAgents,
+    setShowSubtaskAgents,
     alwaysShowLabels,
     ghostHeadlessAgents,
     setGhostHeadlessAgents: applyGhostHeadlessAgents,

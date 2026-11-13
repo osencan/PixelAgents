@@ -22,7 +22,8 @@ import type { AgentState } from './types.js';
  *  signal never comes. */
 export function toPersistedAgent(agent: AgentState): PersistedAgent | null {
   // Codex characters are reconstructed from their read-only rollout observer.
-  if (agent.spawnToolUseId || agent.providerId === 'codex') return null;
+  // Forks are re-adopted from their sidecar while they still run.
+  if (agent.spawnToolUseId || agent.isFork || agent.providerId === 'codex') return null;
   return {
     id: agent.id,
     sessionId: agent.sessionId,

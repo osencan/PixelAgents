@@ -5,7 +5,7 @@
 <div align="center">
 
 [![license](https://img.shields.io/github/license/osencan/PixelAgents?color=0183ff&style=flat)](LICENSE)
-[![version](https://img.shields.io/badge/version-2.0.1-0183ff?style=flat)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-2.0.2-0183ff?style=flat)](CHANGELOG.md)
 [![sponsor](https://img.shields.io/badge/sponsor-%E2%99%A5-ea4aaa?style=flat)](https://github.com/sponsors/osencan)
 
 </div>
@@ -33,6 +33,7 @@ Pixel Agents turns the AI coding agents running in your terminals into animated 
 - **Honest statuses**: thinking, planning, reading, editing, running, waiting for permission or for input, idle, or no recent activity. Each is marked **reported** (from a hook or log) or **guessed**. Only a real permission request means "needs approval".
 - **Detail panel**: click a character to see what it's doing, for how long, what it's asking for, this turn's tool steps, its subagents and parent, context use, and recent history.
 - **Quiet notifications** for approval requests, finished turns, failed tools and test/build results.
+- **Subtasks as agents (experimental, off by default)**: turn on **Settings → Show Subtasks as Agents** and each running Claude Code `/subtask` gets its own character beside its session's agent, labelled _Subagent_, _Running_ and the project. It leaves when the subtask finishes.
 - **Rooms with a purpose**: give each painted area a purpose (Work, Rest, Waiting or Planning). Idle agents walk to the rest room and doze after a while, permission waits can queue in a waiting room, and Claude sessions in plan mode can gather in a planning room.
 
 ### Your own view (per browser)

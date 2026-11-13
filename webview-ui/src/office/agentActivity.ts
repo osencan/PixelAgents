@@ -9,6 +9,17 @@ export const WAITING_INPUT_ACTIVITY_TEXT = 'Waiting for input';
 export const NEEDS_APPROVAL_TEXT = 'Needs approval';
 
 /** Derive a short human-readable activity string from tools/status */
+/**
+ * The activity word alone, for compact labels: "Running: npm test" → "Running",
+ * "Reading app.ts" → "Reading". Fixed phrases without a verb ("Idle", "Needs
+ * approval", "No recent activity") stay whole.
+ */
+export function activityWord(text: string): string {
+  const head = text.split(' · ')[0].split(':')[0].trim();
+  const first = head.split(' ')[0];
+  return /ing$/.test(first) ? first : head;
+}
+
 export function getActivityText(
   agentId: number,
   agentTools: Record<number, ToolActivity[]>,
