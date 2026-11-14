@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import type { StateAdapter } from '../../core/src/adapter.js';
 import type { PersistedAgent } from '../../core/src/schemas.js';
 import { resendAgentActivity } from '../../server/src/agentActivityResend.js';
+import { sendLifecycleSnapshot } from '../../server/src/agentLifecycle.js';
 import {
   isPersistedSpawnChild,
   restoredAgentInit,
@@ -539,6 +540,7 @@ export function sendCurrentAgentStatuses(
 ): void {
   if (!webview) return;
   resendAgentActivity((msg) => webview.postMessage(msg), agents);
+  sendLifecycleSnapshot(agents, (msg) => webview.postMessage(msg));
 }
 
 export function sendLayout(

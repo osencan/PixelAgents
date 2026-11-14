@@ -57,6 +57,20 @@ describe('claudeProvider', () => {
   });
 
   describe('normalizeHookEvent', () => {
+    it('tags events from a /subtask fork with its id (and only forks)', () => {
+      const base = { hook_event_name: 'PermissionRequest', session_id: 's' };
+      expect(
+        claudeProvider.normalizeHookEvent({ ...base, agent_type: 'fork', agent_id: 'abc-1' }),
+      ).toMatchObject({ sessionId: 's', forkId: 'abc-1', event: { kind: 'permissionRequest' } });
+      const helper = claudeProvider.normalizeHookEvent({
+        ...base,
+        agent_type: 'general-purpose',
+        agent_id: 'h-1',
+      });
+      expect(helper).not.toHaveProperty('forkId');
+      expect(claudeProvider.normalizeHookEvent(base)).not.toHaveProperty('forkId');
+    });
+
     it('returns null when hook_event_name is missing', () => {
       expect(claudeProvider.normalizeHookEvent({ session_id: 'x' })).toBeNull();
     });

@@ -6,6 +6,7 @@ import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js';
 import { isBrowserRuntime } from '../runtime.js';
 import { transport } from '../transport/index.js';
 import { useUsageBridge } from '../usage/useUsageBridge.js';
+import { BrowserPrefs } from './BrowserPrefs.js';
 import { ControlsSection } from './ControlsSection.js';
 import { Button } from './ui/Button.js';
 import { Checkbox } from './ui/Checkbox.js';
@@ -285,6 +286,12 @@ export function SettingsModal({
           onChange={onToggleShowHostDirectories}
         />
         <Checkbox label="Debug View" checked={isDebugMode} onChange={onToggleDebugMode} />
+        <div className="flex flex-col px-10 py-6 border-t-2 border-border">
+          <span className="text-sm text-text-muted leading-tight">
+            This browser only (other devices keep their own):
+          </span>
+          <BrowserPrefs />
+        </div>
       </Modal>
       {usageBridge && (
         <Modal

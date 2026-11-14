@@ -360,21 +360,28 @@ function App() {
   // pixel→tile geometry — the handlers still own undo/dirty/rebuild; for specs
   // that drive the real canvas gesture instead, getTileCenter projects a tile
   // to canvas CSS pixels with the renderer's own zoom + pan. Guarded on isE2E.
+  const {
+    handleEditorTileAction,
+    handleEditorEraseAction,
+    handleDrop,
+    zoom: editorZoom,
+    panRef: editorPanRef,
+  } = editor;
   useEffect(() => {
     if (!isE2E || typeof window === 'undefined') return;
     const hooks = (window.__pixelAgentsTestHooks ??= {});
-    hooks.editorTileAction = (col, row) => editor.handleEditorTileAction(col, row);
-    hooks.editorEraseAction = (col, row) => editor.handleEditorEraseAction(col, row);
+    hooks.editorTileAction = (col, row) => handleEditorTileAction(col, row);
+    hooks.editorEraseAction = (col, row) => handleEditorEraseAction(col, row);
     hooks.editorDrop = (uid, col, row, duplicate = false) =>
-      editor.handleDrop(uid, col, row, { duplicate });
+      handleDrop(uid, col, row, { duplicate });
     hooks.getTileCenter = (col, row) => {
       const canvas = document.querySelector(`[data-testid="${OFFICE_CANVAS_TEST_ID}"]`);
       if (!canvas) return null;
       const projection = overlayProjection(
         getOfficeState().getLayout(),
         canvas.getBoundingClientRect(),
-        editor.zoom,
-        editor.panRef.current,
+        editorZoom,
+        editorPanRef.current,
         window.devicePixelRatio || 1,
       );
       return {
@@ -384,11 +391,11 @@ function App() {
     };
     hooks.getShowAreas = () => effectiveShowAreas;
   }, [
-    editor.handleEditorTileAction,
-    editor.handleEditorEraseAction,
-    editor.handleDrop,
-    editor.zoom,
-    editor.panRef,
+    handleEditorTileAction,
+    handleEditorEraseAction,
+    handleDrop,
+    editorZoom,
+    editorPanRef,
     effectiveShowAreas,
   ]);
 
@@ -605,6 +612,7 @@ function App() {
         mobile={isMobile}
         inToolbar={!isMobile && !officeReadOnly}
         buttonClassName={!isMobile && !officeReadOnly ? TOOLBAR_ROW_HEIGHT_CLASS : ''}
+        browserPrefs={officeReadOnly}
       />
     ) : null;
 

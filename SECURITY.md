@@ -2,13 +2,14 @@
 
 ## Supported Versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.x.x   | :white_check_mark: |
+| Version | Supported                                                                  |
+| ------- | -------------------------------------------------------------------------- |
+| 2.x.x   | :white_check_mark:                                                         |
+| 1.x.x   | Not here: report to [the original project](https://github.com/pixel-agents-hq/pixel-agents) |
 
 ## Reporting a Vulnerability
 
-Please report security vulnerabilities through [GitHub's private vulnerability reporting](https://github.com/pixel-agents-hq/pixel-agents/security/advisories/new).
+Please report security vulnerabilities through [GitHub's private vulnerability reporting](https://github.com/osencan/PixelAgents/security/advisories/new).
 
 **Do not open a public issue for security vulnerabilities.**
 
@@ -22,3 +23,5 @@ Security issues relevant to this project include:
 - Arbitrary file read/write beyond intended paths
 - Cross-site scripting (XSS) in the webview
 - Sensitive data exposure (e.g., leaking terminal output or session content)
+- Agent controls: approving a permission request, launching an agent or reaching a terminal without the token plus control (this machine or a PIN unlock)
+- Read-only viewers seeing more than activity categories (file names, commands, prompt text)

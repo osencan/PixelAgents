@@ -100,6 +100,51 @@ describe('PermissionBroker', () => {
     expect(sent.at(-1)).toMatchObject({ outcome: 'timeout' });
   });
 
+  it("puts a /subtask fork's request on its own character and keeps lead and fork apart", async () => {
+    const { store, broker, sent } = setup();
+    const fork = createAgentState({
+      id: 2,
+      sessionId: 'sess-1', // a fork shares its lead's session
+      projectDir: '/w',
+      jsonlFile: '/w/sess-1/subagents/agent-afix-tests-0123.jsonl',
+      isExternal: true,
+      leadAgentId: 1,
+      isFork: true,
+    });
+    fork.projectRoot = '/work/site';
+    store.set(2, fork);
+    policy.setApprovalEnabled('/work/site', true);
+    policy.setControlSocket(controlSocket, true);
+    const tag = { agent_type: 'fork', agent_id: 'afix-tests-0123' };
+
+    const forkAnswer = broker.ask({ ...event, ...tag }, never);
+    const leadAnswer = broker.ask(event, never);
+    const pending = sent.filter((m) => m.type === 'agentPermissionPending');
+    expect(pending.map((m) => m.id)).toEqual([2, 1]);
+
+    // The lead moving on settles only its own prompt; the fork's still waits.
+    broker.observe({ hook_event_name: 'PostToolUse', session_id: 'sess-1' });
+    expect(await leadAnswer).toBeNull();
+    broker.observe({ hook_event_name: 'Stop', session_id: 'sess-1' });
+    const resolved = () => sent.filter((m) => m.type === 'agentPermissionResolved');
+    expect(resolved().map((m) => m.id)).toEqual([1]);
+    expect(broker.decide(pending[0].requestId as string, 'allow', 'local')).toBe(true);
+    expect(await forkAnswer).toBe('allow');
+
+    // A fork with no character (switch off) asks through its lead; the
+    // session ending lets every waiting prompt go.
+    const unknown = broker.ask({ ...event, agent_type: 'fork', agent_id: 'gone' }, never);
+    expect(sent.filter((m) => m.type === 'agentPermissionPending').at(-1)).toMatchObject({ id: 1 });
+    broker.observe({ hook_event_name: 'SessionEnd', session_id: 'sess-1' });
+    expect(await unknown).toBeNull();
+
+    // And the fork's own next step settles its prompt (answered in the terminal).
+    const again = broker.ask({ ...event, ...tag }, never);
+    broker.observe({ hook_event_name: 'PreToolUse', session_id: 'sess-1', ...tag });
+    expect(await again).toBeNull();
+    expect(resolved().at(-1)).toMatchObject({ id: 2, outcome: 'elsewhere' });
+  });
+
   it("uses the project of the request's cwd, before the agent is labelled", async () => {
     const { store, broker, sent } = setup();
     store.get(1)!.projectRoot = undefined;

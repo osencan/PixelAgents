@@ -4,6 +4,7 @@ import type { AgentEvent, HookProvider } from '../../core/src/provider.js';
 import type { AgentStateStore } from './agentStateStore.js';
 import { classifyCheckCommand } from './checkCommands.js';
 import { ENDED_SESSION_TOMBSTONE_MS, SESSION_END_GRACE_MS } from './constants.js';
+import { findForkAgent } from './forkAgents.js';
 import { pathsMatch } from './pathKey.js';
 import type { SessionRouter } from './sessionRouter.js';
 import { getInlineTeammates, hasInlineTeammates, hasPromotedBackgroundAgent } from './teamUtils.js';
@@ -350,6 +351,12 @@ export class HookEventHandler {
         `[Pixel Agents] Hook: Agent ${agentId} - ${eventName} (session=${event.session_id.slice(0, 8)}...)`,
       );
 
+    // A /subtask fork shares its lead's session. When the fork has its own
+    // character, its permission requests and tool steps belong there.
+    if (normalized.forkId && this.handleForkEvent(normEvent, event.session_id, normalized.forkId)) {
+      return;
+    }
+
     // Dispatch on normalized AgentEvent.kind, not raw hook event names.
     // The TeammateIdle / TaskCompleted hooks normalize to `subagentTurnEnd` -- both
     // retain their raw payload for the team-routing handler's identity extraction.
@@ -695,6 +702,41 @@ export class HookEventHandler {
         parentToolId,
       });
     }
+  }
+
+  /**
+   * An event from a fork shown as its own character. A permission request
+   * lights up the fork; its tool steps only clear that (the fork's transcript
+   * drives its activity, like a teammate's) and are kept off the lead, which
+   * would otherwise show the fork's command as its own. Other events, or a
+   * fork with no character, go to the lead as before. True when handled.
+   */
+  private handleForkEvent(normEvent: AgentEvent, sessionId: string, forkId: string): boolean {
+    if (
+      normEvent.kind !== 'permissionRequest' &&
+      normEvent.kind !== 'toolStart' &&
+      normEvent.kind !== 'toolEnd'
+    ) {
+      return false;
+    }
+    const found = findForkAgent(this.agents, sessionId, forkId);
+    if (!found) return false;
+    const [id, fork] = found;
+    cancelPermissionTimer(id, this.permissionTimers);
+    if (normEvent.kind === 'permissionRequest') {
+      fork.permissionSent = true;
+      this.agents.broadcast({ type: 'agentToolPermission', id });
+      return true;
+    }
+    if (normEvent.kind === 'toolEnd' && normEvent.failed) {
+      this.agents.broadcast({ type: 'agentToolFailed', id, at: Date.now() });
+    }
+    if (fork.permissionSent) {
+      fork.permissionSent = false;
+      fork.permissionSuspected = false;
+      this.agents.broadcast({ type: 'agentToolPermissionClear', id });
+    }
+    return true;
   }
 
   /** Handle Stop: Claude finished responding, mark agent as waiting. */

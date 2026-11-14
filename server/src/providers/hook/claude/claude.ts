@@ -150,7 +150,28 @@ function getAllSessionRoots(): string[] {
 // currentHookToolId state. Synthetic hook-* ids are returned for PreToolUse because
 // the real tool id arrives later via JSONL polling.
 
+/**
+ * The /subtask fork a hook event came from. Claude tags every event fired
+ * inside a fork (PreToolUse, PermissionRequest, PostToolUse, ...) with
+ * `agent_type: 'fork'` and the fork's `agent_id`, which also names its
+ * `subagents/agent-<id>.jsonl` transcript; the session id is the lead's.
+ * Verified with Claude Code 2.1.311.
+ */
+export function forkIdOfHookEvent(raw: Record<string, unknown>): string | undefined {
+  return raw.agent_type === 'fork' && typeof raw.agent_id === 'string' && raw.agent_id
+    ? raw.agent_id
+    : undefined;
+}
+
 function normalizeHookEvent(
+  raw: Record<string, unknown>,
+): { sessionId: string; event: AgentEvent; forkId?: string } | null {
+  const normalized = normalizeHookEventKind(raw);
+  const forkId = forkIdOfHookEvent(raw);
+  return normalized && forkId ? { ...normalized, forkId } : normalized;
+}
+
+function normalizeHookEventKind(
   raw: Record<string, unknown>,
 ): { sessionId: string; event: AgentEvent } | null {
   const eventName = raw.hook_event_name;

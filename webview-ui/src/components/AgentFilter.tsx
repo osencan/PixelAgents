@@ -11,12 +11,7 @@ import {
   toggleProvider,
   useAgentFilterVersion,
 } from '../office/agentFilter.js';
-import { ambientEnabled, setAmbientEnabled, useAmbientVersion } from '../office/ambient.js';
-import {
-  notificationsEnabled,
-  setNotificationsEnabled,
-  useNotificationsVersion,
-} from '../office/notifications.js';
+import { BrowserPrefs } from './BrowserPrefs.js';
 import { Button } from './ui/Button.js';
 import { Checkbox } from './ui/Checkbox.js';
 
@@ -28,6 +23,8 @@ interface AgentFilterProps {
   mobile: boolean;
   /** In the bottom toolbar's row (opens upward), instead of floating over the office. */
   inToolbar?: boolean;
+  /** Also hold this browser's switches (a page without the token has no Settings). */
+  browserPrefs?: boolean;
   /** Extra classes for the button (the toolbar's row height). */
   buttonClassName?: string;
 }
@@ -39,10 +36,9 @@ export function AgentFilter({
   mobile,
   inToolbar = false,
   buttonClassName = '',
+  browserPrefs = false,
 }: AgentFilterProps) {
   useAgentFilterVersion();
-  useNotificationsVersion();
-  useAmbientVersion();
   const [open, setOpen] = useState(false);
   const providers = [...new Set(labels.map((l) => providerName(l)))].sort();
   const projects = [...new Set(labels.map((l) => projectOfLabel(l)))].sort((a, b) =>
@@ -100,19 +96,12 @@ export function AgentFilter({
               Show all
             </Button>
           )}
-          <span className="text-text-muted pt-4">This browser</span>
-          <Checkbox
-            label="Notifications"
-            checked={notificationsEnabled()}
-            onChange={() => setNotificationsEnabled(!notificationsEnabled())}
-            title="Approval requests, finished turns and failed tools"
-          />
-          <Checkbox
-            label="Day/night tint"
-            checked={ambientEnabled()}
-            onChange={() => setAmbientEnabled(!ambientEnabled())}
-            title="Decoration only: follows your clock, not agent activity"
-          />
+          {browserPrefs && (
+            <>
+              <span className="text-text-muted pt-4">This browser</span>
+              <BrowserPrefs />
+            </>
+          )}
         </div>
       )}
     </div>

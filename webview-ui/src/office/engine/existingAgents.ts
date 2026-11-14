@@ -43,7 +43,13 @@ export interface ExistingAgentsOffice {
   /** Start an agent at rest: not working, resting in its chair if it has one. */
   restAgent: (id: number) => void;
   /** Give an agent the office already shows the server's look and seat. */
-  syncAgent: (id: number, palette?: number, repeat?: number, seatId?: string, directoryName?: string) => void;
+  syncAgent: (
+    id: number,
+    palette?: number,
+    repeat?: number,
+    seatId?: string,
+    directoryName?: string,
+  ) => void;
 }
 
 /**

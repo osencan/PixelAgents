@@ -7,6 +7,8 @@ import type { StateAdapter } from '../../core/src/adapter.js';
 import { rosterPick } from '../../core/src/paletteUtils.js';
 import type { HookProvider } from '../../core/src/provider.js';
 import { buildAgentDiagnostics } from '../../server/src/agentDiagnostics.js';
+import type { AgentLifecycleService } from '../../server/src/agentLifecycle.js';
+import { startAgentLifecycle } from '../../server/src/agentLifecycle.js';
 import { agentCreatedMessage } from '../../server/src/agentMessages.js';
 import { AgentRuntime } from '../../server/src/agentRuntime.js';
 import { AgentStateStore } from '../../server/src/agentStateStore.js';
@@ -118,6 +120,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   // Shared agent lifecycle core (timer Maps, scanners, hook handler, dismissal tracker)
   private runtime: AgentRuntime;
 
+  // Reported/guessed state per agent (agentLifecycle) and its recent history
+  private lifecycle: AgentLifecycleService;
+
   // Global session scanning dismissal tracking
   private globalDismissedFiles = new Set<string>();
 
@@ -207,6 +212,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
     // Create shared runtime (owns timer Maps, scanners, hook handler, dismissal tracker)
     this.runtime = new AgentRuntime(this.store, claudeProvider);
+    this.lifecycle = startAgentLifecycle(this.store);
 
     this.initServer();
   }
@@ -1206,6 +1212,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     this.pixelAgentsServer?.stop();
     this.pixelAgentsServer = null;
     this.runtime.dispose();
+    this.lifecycle.dispose();
     this.layoutWatcher?.dispose();
     this.layoutWatcher = null;
     this.characterProfilesWatcher.dispose();

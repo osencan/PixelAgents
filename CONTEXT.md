@@ -20,6 +20,10 @@ _Avoid_: CLI (that's the entry command, not the adapter), browser mode
 A standalone office opened without the server's token, or under a host name the operator didn't allow. It shows everything live, but changes nothing: no launching, no layout edits, no settings.
 _Avoid_: guest mode, watch-only, untokened (that's how it happens, not what it is)
 
+**Control**:
+The tier above a tokened office that may steer agents: answer permission requests, launch agents, type into their terminals. A connection has control with the token on the host itself, or with the token plus a PIN unlock from another device (relayed requests always need the PIN). An unlock lapses after 30 idle minutes or when the page closes.
+_Avoid_: admin, owner, unlocked mode
+
 ## Agents & Teams
 
 **Agent**:
@@ -40,6 +44,10 @@ _Avoid_: faded, dimmed, transparent, inactive (that's a status)
 **Sub-agent**:
 An unnamed piece of delegated work spawned by an agent, visualized with its own character near its parent — around it, not in a seat. Not an Agent (no session of its own) and not a Teammate (no name). It exists only for the duration of its task, which may outlive the parent's turn. Having no name is what makes it a sub-agent.
 _Avoid_: subtask (UI label prefix only)
+
+**Subtask agent**:
+A Claude Code `/subtask` fork drawn as its own character beside its session's agent, labelled Subagent. Unlike a sub-agent it has its own transcript, but it shares its parent's session. Shown only when the operator turns it on; when the fork finishes it walks to the rest room and despawns.
+_Avoid_: fork character, child agent
 
 **Team**:
 A Lead plus the Teammates it spawned. A team exists because a teammate was spawned — whether or not the CLI recorded one. A CLI's team registry is evidence of a team, never its definition.
@@ -133,7 +141,15 @@ The inactive form where the agent finished its turn and nothing is pending.
 The inactive form where the agent asked the user something and is blocked on a reply.
 
 **Permission request**:
-The inactive form where the agent is blocked until the user approves a tool use. Unlike the other two forms, it can occur mid-turn.
+The inactive form where the agent is blocked until the user approves a tool use. Unlike the other two forms, it can occur mid-turn. Only a request the provider reported counts; see Guessed permission wait.
+
+**Guessed permission wait**:
+A tool that has run a while with no news, which might be a permission prompt or just a slow command. Shown as a hint ("approval?") after the activity label, never as a permission request.
+_Avoid_: permission bubble (that is for reported requests)
+
+**Lifecycle**:
+The server's one current state per agent (thinking, planning, reading, editing, running, waiting for permission or input, idle, unknown), marked observed when a hook or log reported it, inferred otherwise. Replayed to a reconnecting client with a short in-memory history.
+_Avoid_: status (too loose)
 
 **Activity label**:
 The human-readable line describing what an agent is doing right now (e.g. "Reading foo.ts"), shown above its character.
@@ -190,8 +206,12 @@ A blocking tile that visually connects to adjacent walls.
 A decorative layer painted over floor tiles.
 
 **Area**:
-A named region of tiles. Areas exist so directories can be mapped to them.
+A named region of tiles. Areas exist so directories can be mapped to them, and each has a purpose.
 _Avoid_: zone, region
+
+**Purpose**:
+What an area is for: Work (default), Rest (idle agents go there and may fall asleep), Waiting (reported permission waits, if the office routes them) or Planning (Claude sessions in plan mode).
+_Avoid_: room type
 
 **Area mapping**:
 The assignment of a directory to one or more areas. Many directories may share an area. Agents launched into a directory prefer seats inside any of its areas.

@@ -878,10 +878,11 @@ test.describe('Hooks OFF / lifecycle', () => {
   // 2. A progress record arrives with a sub-agent tool_use for a non-exempt
   //    tool (Bash). transcriptParser registers the sub-tool and starts the
   //    permission timer.
-  // 3. ~5s with no further sub-agent data -> permission bubble appears on
-  //    both parent and sub-character (per CLAUDE.md "Sub-agent permission
-  //    detection" note).
-  test('sub-agent permission bubble fires on stalled non-exempt sub-tool via heuristic timer @area:cross-cutting', async ({
+  // 3. ~7s with no further sub-agent data -> the parent's label gains the
+  //    "approval?" hint. Since 2.0 the timer is only a guess (a slow command
+  //    looks the same), so it never lights up "Needs approval"; that is kept
+  //    for permission requests Claude actually reported.
+  test('stalled non-exempt sub-tool marks the parent "approval?" via heuristic timer @area:cross-cutting', async ({
     pixelAgents,
   }) => {
     const { frame, window, tmpHome, mockLogFile, narrator } = pixelAgents;
@@ -949,7 +950,8 @@ test.describe('Hooks OFF / lifecycle', () => {
     // (7s), and broadcast-to-DOM takes another ~300ms (transport + React
     // render). So this wait must cover: 1s scenario gap + 7s timer + slop.
     narrator.step('waiting out the 7s permission timer for the stalled sub-tool (~8–10s)');
-    await expectOverlayVisible(panelFrame, 'Needs approval', 10_000);
-    narrator.check('"Needs approval" bubble fired on the stalled sub-tool');
+    await expectOverlayVisible(panelFrame, 'approval?', 10_000);
+    await expectNoOverlay(panelFrame, 'Needs approval');
+    narrator.check('"approval?" hint on the parent, no confirmed "Needs approval"');
   });
 });
