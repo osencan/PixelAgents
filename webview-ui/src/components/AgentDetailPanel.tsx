@@ -339,7 +339,11 @@ export function AgentDetailPanel({
         {controlAccess.control && !ch.isSubagent && !ownedByOffice && (
           <span className="text-text-muted leading-tight" data-testid="remote-control-hint">
             Started in your own terminal, so the office can't type into it. To send it messages from
-            a browser or phone, start Claude with <code>claude --remote-control</code>.
+            a browser or phone, start Claude with{' '}
+            <code className="text-text whitespace-nowrap" style={{ font: 'inherit' }}>
+              claude --remote-control
+            </code>
+            .
           </span>
         )}
         {!ch.isSubagent && (

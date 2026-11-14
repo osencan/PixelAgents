@@ -178,6 +178,50 @@ describe('HookEventHandler', () => {
     expect(subMsg?.parentToolId).toBe('tool-parent');
   });
 
+  // ── /subtask forks (Show Subtasks as Agents) ────────────────
+
+  it("routes a /subtask fork's permission and tool steps to its own character", () => {
+    agents.set(1, createTestAgent({ id: 1, sessionId: 'sess-1' }));
+    agents.set(
+      2,
+      createTestAgent({
+        id: 2,
+        sessionId: 'sess-1',
+        leadAgentId: 1,
+        isFork: true,
+        jsonlFile: '/test/sess-1/subagents/agent-afix-0123.jsonl',
+      }),
+    );
+    handler.registerAgent('sess-1', 1);
+    const fork = { session_id: 'sess-1', agent_type: 'fork', agent_id: 'afix-0123' };
+    const ofType = (type: string) => mockWebview.messages.filter((m) => m.type === type);
+
+    handler.handleEvent('claude', { hook_event_name: 'PreToolUse', tool_name: 'Bash', ...fork });
+    handler.handleEvent('claude', { hook_event_name: 'PermissionRequest', ...fork });
+    expect(ofType('agentToolPermission').map((m) => m.id)).toEqual([2]);
+    expect(agents.get(2)!.permissionSent).toBe(true);
+    // The fork's command is not shown as the lead's own.
+    expect(ofType('agentToolStart')).toEqual([]);
+    expect(agents.get(1)!.permissionSent).toBe(false);
+
+    handler.handleEvent('claude', { hook_event_name: 'PostToolUse', tool_name: 'Bash', ...fork });
+    expect(ofType('agentToolPermissionClear').map((m) => m.id)).toEqual([2]);
+    expect(agents.get(2)!.permissionSent).toBe(false);
+  });
+
+  it('a fork with no character of its own still lights up its lead', () => {
+    agents.set(1, createTestAgent({ id: 1, sessionId: 'sess-1' }));
+    handler.registerAgent('sess-1', 1);
+    handler.handleEvent('claude', {
+      hook_event_name: 'PermissionRequest',
+      session_id: 'sess-1',
+      agent_type: 'fork',
+      agent_id: 'not-shown',
+    });
+    const msg = mockWebview.messages.find((m) => m.type === 'agentToolPermission');
+    expect(msg?.id).toBe(1);
+  });
+
   // ── Notification ────────────────────────────────────────────
 
   it('Notification permission_prompt sends agentToolPermission', () => {

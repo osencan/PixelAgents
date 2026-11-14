@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.0.4
+
+- **Subtask approvals on the subtask:** with **Show Subtasks as Agents** on, a `/subtask`'s permission request lights up its own _Subagent_ character, and in a project with browser approvals its panel shows **Approve / Deny**. Its commands no longer show on the main agent's label. (Claude tags every hook event from a subtask with its id.)
+- **Fix:** a pending browser approval no longer disappears when another agent in the same session (the main agent or another subtask) takes its next step. Each waits on its own; only the session ending clears them all.
+- **This browser's switches moved to Settings:** Notifications, Day/night tint and the new **Lines to subagents** (show or hide the dashed lines from a selected agent to its lead and subagents) are under **Settings → This browser only**. Filter is now only the provider/project filter. A page opened without the token has no Settings, so its Filter panel keeps them.
+- **VS Code extension:** shows reported/guessed statuses, the "approval?" hint and history, like the browser app.
+- The `claude --remote-control` hint in the panel uses the panel's font instead of a large monospace one.
+- **CI is green again** (formatting, test inventory, an outdated test), and releases no longer start the npm/Marketplace publish workflow: 2.x is released on GitHub only.
+
 ## v2.0.3
 
 - **Agent controls moved to Settings:** setting the control PIN (on the server's machine) and unlocking controls (on other devices) are now in **Settings → Agent controls**, where people look for them, instead of the Filter panel.

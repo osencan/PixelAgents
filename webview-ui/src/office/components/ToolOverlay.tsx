@@ -36,6 +36,7 @@ import { activeCheckResult, checkText } from '../checkResults.js';
 import { ContextBar } from '../ContextBar.js';
 import { contextLeft } from '../contextGauge.js';
 import type { OfficeState } from '../engine/officeState.js';
+import { linkLinesEnabled } from '../linkLines.js';
 import { overlayProjection } from '../projection.js';
 import { projectAccent } from '../projectPrefs.js';
 import { getCachedSprite } from '../sprites/spriteCache.js';
@@ -123,9 +124,10 @@ export function ToolOverlay({
 
   // The selected agent's real links (lead/parent and the agents naming it as
   // theirs), drawn as dashed lines; hidden or filtered ends are left out.
+  // Each browser can turn the lines off (Filter panel).
   const linkLines: Array<{ key: string; x1: number; y1: number; x2: number; y2: number }> = [];
   const sel = selectedId !== null ? officeState.characters.get(selectedId) : undefined;
-  if (sel && selectedId !== null && !officeState.isHidden(selectedId)) {
+  if (linkLinesEnabled() && sel && selectedId !== null && !officeState.isHidden(selectedId)) {
     const at = (c: { x: number; y: number }) => ({
       x: project.toScreenX(c.x),
       y: project.toScreenY(c.y - LINK_LINE_ANCHOR_OFFSET_PX),

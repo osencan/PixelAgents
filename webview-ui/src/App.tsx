@@ -612,6 +612,7 @@ function App() {
         mobile={isMobile}
         inToolbar={!isMobile && !officeReadOnly}
         buttonClassName={!isMobile && !officeReadOnly ? TOOLBAR_ROW_HEIGHT_CLASS : ''}
+        browserPrefs={officeReadOnly}
       />
     ) : null;
 

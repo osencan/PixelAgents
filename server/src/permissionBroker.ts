@@ -18,8 +18,9 @@ import { agentKey } from './agentMessages.js';
 import type { AgentStateStore } from './agentStateStore.js';
 import { PERMISSION_DECISION_WAIT_MS } from './constants.js';
 import { auditControl, hasControlClient, isApprovalEnabled } from './controlPolicy.js';
+import { findForkAgent } from './forkAgents.js';
 import { resolveProject } from './projectIdentity.js';
-import { formatToolStatus } from './providers/hook/claude/claude.js';
+import { forkIdOfHookEvent, formatToolStatus } from './providers/hook/claude/claude.js';
 
 export type PermissionBehavior = 'allow' | 'deny';
 type Outcome = PermissionBehavior | 'timeout' | 'withdrawn' | 'elsewhere';
@@ -87,6 +88,8 @@ interface Pending {
   requestId: string;
   agentId: number;
   sessionId: string;
+  /** The /subtask fork that asked, or '' for the session itself. */
+  fork: string;
   toolName: string;
   target: string;
   detail: string;
@@ -111,7 +114,11 @@ export class PermissionBroker {
     onAbort: (cb: () => void) => void,
   ): Promise<PermissionBehavior | null> {
     const sessionId = typeof event.session_id === 'string' ? event.session_id : '';
-    const found = [...this.store].find(([, a]) => a.sessionId === sessionId);
+    const fork = forkIdOfHookEvent(event) ?? '';
+    // A fork shares its lead's session: its own character when shown, else the lead.
+    const found =
+      (fork ? findForkAgent(this.store, sessionId, fork) : undefined) ??
+      [...this.store].find(([, a]) => a.sessionId === sessionId && !a.isFork);
     if (!found) return Promise.resolve(null);
     const [agentId, agent] = found;
     // The project as of this request (the hook reports its cwd; a brand-new
@@ -134,6 +141,7 @@ export class PermissionBroker {
         requestId,
         agentId,
         sessionId,
+        fork,
         toolName,
         target,
         detail,
@@ -166,11 +174,16 @@ export class PermissionBroker {
     return true;
   }
 
-  /** Any hook event: a session that moved on answered its prompt elsewhere. */
+  /** Any hook event: a session that moved on answered its prompt elsewhere.
+   *  The lead and each fork wait separately: one working on doesn't answer
+   *  another's prompt. Only the session ending ends them all. */
   observe(event: Record<string, unknown>): void {
-    if (!SESSION_MOVED_EVENTS.has(String(event.hook_event_name))) return;
+    const name = String(event.hook_event_name);
+    if (!SESSION_MOVED_EVENTS.has(name)) return;
+    const fork = forkIdOfHookEvent(event) ?? '';
     for (const p of [...this.pending.values()]) {
-      if (p.sessionId === event.session_id) this.finish(p.requestId, 'elsewhere');
+      if (p.sessionId !== event.session_id) continue;
+      if (name === 'SessionEnd' || p.fork === fork) this.finish(p.requestId, 'elsewhere');
     }
   }
 

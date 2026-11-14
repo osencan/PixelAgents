@@ -40,14 +40,14 @@ export const changelogEntries: ChangelogEntry[] = [
           'Project labels follow the real git root, worktrees included, and can be pinned to a friendlier name',
           'Rooms with a purpose: Work, Rest, Waiting and Planning; idle agents doze in the rest room',
           'Notifications for approvals, finished turns, failures and test/build results',
-          'Subtasks as their own agents (experimental, off by default: Settings → Show Subtasks as Agents)',
+          'Subtasks as their own agents, with their own approvals (experimental, off by default: Settings → Show Subtasks as Agents)',
         ],
       },
       {
         title: 'Your own view',
         items: [
           'Filter by provider and project, and hide agents without removing them',
-          'Roles, project colors, desk memory and a day/night tint, kept per browser',
+          'Roles, project colors, desk memory, a day/night tint and lines to subagents, kept per browser (Settings → This browser only)',
         ],
       },
       {

@@ -137,6 +137,9 @@ export interface HookProvider {
   normalizeHookEvent(raw: Record<string, unknown>): {
     sessionId: string;
     event: AgentEvent;
+    /** Set when the event came from a fork of the session (Claude's /subtask),
+     *  which shares the session id: the fork's own id. */
+    forkId?: string;
   } | null;
 
   /** Install hook scripts that POST to our server. */
