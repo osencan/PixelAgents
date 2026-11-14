@@ -107,7 +107,7 @@ export function VersionIndicator({
         </div>
       )}
       {/* Version label — always visible, riding above the office radio (MusicPlayer).
-          The exact version (v2.0.4); What's New and its notice stay per major.minor. */}
+          The exact version (v2.0.5); What's New and its notice stay per major.minor. */}
       <div
         onMouseEnter={() => setLabelHovered(true)}
         onMouseLeave={() => setLabelHovered(false)}
