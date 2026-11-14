@@ -106,7 +106,8 @@ export function VersionIndicator({
           See what's new!
         </div>
       )}
-      {/* Version label — always visible, riding above the office radio (MusicPlayer) */}
+      {/* Version label — always visible, riding above the office radio (MusicPlayer).
+          The exact version (v2.0.4); What's New and its notice stay per major.minor. */}
       <div
         onMouseEnter={() => setLabelHovered(true)}
         onMouseLeave={() => setLabelHovered(false)}
@@ -118,7 +119,7 @@ export function VersionIndicator({
           transition: `opacity 200ms, ${RIDE_ABOVE_RADIO}`,
         }}
       >
-        <PixelText text={`v${currentMajorMinor}`} scale={3} />
+        <PixelText text={`v${currentVersion}`} scale={3} />
       </div>
     </>
   );

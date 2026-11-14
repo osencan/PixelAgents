@@ -7,6 +7,7 @@
 - **This browser's switches moved to Settings:** Notifications, Day/night tint and the new **Lines to subagents** (show or hide the dashed lines from a selected agent to its lead and subagents) are under **Settings → This browser only**. Filter is now only the provider/project filter. A page opened without the token has no Settings, so its Filter panel keeps them.
 - **VS Code extension:** shows reported/guessed statuses, the "approval?" hint and history, like the browser app.
 - The `claude --remote-control` hint in the panel uses the panel's font instead of a large monospace one.
+- The corner shows the exact version (**v2.0.4**) instead of v2.0. What's New and its update notice still go by major.minor.
 - **CI is green again** (formatting, test inventory, an outdated test), and releases no longer start the npm/Marketplace publish workflow: 2.x is released on GitHub only.
 
 ## v2.0.3

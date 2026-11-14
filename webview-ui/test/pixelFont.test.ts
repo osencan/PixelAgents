@@ -23,7 +23,7 @@ describe('splitLabel', () => {
   });
 
   it('reads signed numbers, zoom levels, versions and fractions', () => {
-    for (const t of ['-40', '3x', 'v1.5', '1 / 21', '12.5%', '#' + 'C0FFEE']) {
+    for (const t of ['-40', '3x', 'v1.5', 'v2.0.4', '1 / 21', '12.5%', '#' + 'C0FFEE']) {
       expect(splitLabel(t)).toEqual([{ glyphs: true, text: t }]);
     }
     expect(splitLabel('OCT 13')).toEqual([{ glyphs: true, text: 'OCT 13' }]);
