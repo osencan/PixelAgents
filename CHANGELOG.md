@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.0.5
+
+- The corner shows the exact version (**v2.0.5**) instead of v2.0. What's New and its update notice still go by major.minor, so patch releases don't bring the notice back.
+
 ## v2.0.4
 
 - **Subtask approvals on the subtask:** with **Show Subtasks as Agents** on, a `/subtask`'s permission request lights up its own _Subagent_ character, and in a project with browser approvals its panel shows **Approve / Deny**. Its commands no longer show on the main agent's label. (Claude tags every hook event from a subtask with its id.)

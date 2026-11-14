@@ -5,7 +5,7 @@
 <div align="center">
 
 [![license](https://img.shields.io/github/license/osencan/PixelAgents?color=0183ff&style=flat)](LICENSE)
-[![version](https://img.shields.io/badge/version-2.0.4-0183ff?style=flat)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-2.0.5-0183ff?style=flat)](CHANGELOG.md)
 [![sponsor](https://img.shields.io/badge/sponsor-%E2%99%A5-ea4aaa?style=flat)](https://github.com/sponsors/osencan)
 
 </div>
