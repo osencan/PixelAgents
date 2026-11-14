@@ -48,11 +48,11 @@ export function ControlsSection() {
       <span className="text-text-muted pt-4">Agent controls</span>
       {access.local ? (
         <>
-          <span className="leading-tight">On (this computer).</span>
+          <span className="leading-tight">On: this is the computer running Pixel Agents.</span>
           <span className="text-text-muted leading-tight">
             {access.pinSet
-              ? 'Change the PIN other devices use to unlock controls:'
-              : 'Set a PIN (6-12 digits) so other devices can unlock controls:'}
+              ? 'A PIN is set. Other devices (phone, tablet, another computer) enter it in their own Settings → Agent controls to unlock. Change it:'
+              : 'Set a PIN (6-12 digits) here. Other devices (phone, tablet, another computer) then enter it in their own Settings → Agent controls to unlock controls:'}
           </span>
           <span className="flex items-center gap-4">
             {pinInput(() => submit('setControlPin'))}
@@ -70,10 +70,14 @@ export function ControlsSection() {
         </>
       ) : !access.pinSet ? (
         <span className="text-text-muted leading-tight">
-          Set a control PIN on the server's computer to control agents from here.
+          No control PIN yet. On the computer running Pixel Agents, set one in Settings → Agent
+          controls, then enter it here.
         </span>
       ) : (
         <>
+          <span className="text-text-muted leading-tight">
+            Enter the control PIN set on the computer running Pixel Agents:
+          </span>
           <span className="flex items-center gap-4">
             {pinInput(() => submit('unlockControl'))}
             <Button size="sm" disabled={pin.length < 6} onClick={() => submit('unlockControl')}>
