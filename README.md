@@ -5,7 +5,7 @@
 <div align="center">
 
 [![license](https://img.shields.io/github/license/osencan/PixelAgents?color=0183ff&style=flat)](LICENSE)
-[![version](https://img.shields.io/badge/version-2.0.5-0183ff?style=flat)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-2.0.6-0183ff?style=flat)](CHANGELOG.md)
 [![sponsor](https://img.shields.io/badge/sponsor-%E2%99%A5-ea4aaa?style=flat)](https://github.com/sponsors/osencan)
 
 </div>
@@ -104,7 +104,7 @@ The first time, the browser asks your consent before installing Claude Code hook
 | Dashed lines (selected agent)   | Links to its parent or children (Settings → Lines to subagents)      |
 
 <p align="center">
-  <img src="images/filter.png" alt="The Filter panel: providers, projects, notifications, tint and agent controls" width="240">
+  <img src="images/filter.png" alt="The Filter panel: providers and projects" width="240">
 </p>
 
 **Filter** (bottom toolbar, right of Settings; on phones and read-only pages it floats at the top) holds the provider/project filter. **Settings** holds the **Agent controls** and, under _This browser only_, the notifications, day/night tint and subagent-lines switches (a page opened without the token has no Settings, so its Filter panel keeps them).
@@ -113,8 +113,10 @@ The first time, the browser asks your consent before installing Claude Code hook
 
 Steering is off for everyone until it's allowed:
 
-1. **On the server's machine**, the token URL has control. Set a **control PIN** (6–12 digits) in **Settings → Agent controls**.
-2. **On another device** (phone, tablet), open the token URL, then **Settings → Agent controls → Unlock** with the PIN. An unlock lasts until you lock it or after 30 idle minutes. Five wrong PINs lock that device out for 15 minutes.
+The **control PIN** is set once, on the computer running Pixel Agents, and typed on every other device that should be able to steer agents:
+
+1. **On the computer running Pixel Agents**, open the token URL. Controls are already on there and need no PIN. Choose a PIN (6–12 digits) in **Settings → Agent controls** and press **Set**.
+2. **On each other device** (phone, tablet, another computer on your network), open the same token URL, go to **Settings → Agent controls**, enter that PIN and press **Unlock**. An unlock lasts until you press **Lock** or after 30 idle minutes. Five wrong PINs lock that device out for 15 minutes. Without the PIN, a device with the token still watches, but can't steer.
 3. **Approvals are opt-in per project**: in an agent's panel, tick **Approvals: from the browser, for this project**.
 
 Then:

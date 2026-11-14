@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.0.6
+
+- **Clearer control PIN:** Settings → Agent controls now says that the PIN is set on the computer running Pixel Agents (which needs none itself) and typed on each other device in its own Settings → Agent controls; the unlock field says which PIN it wants. The README explains the same two roles.
+- New Filter screenshot in the README (providers and projects only).
+
 ## v2.0.5
 
 - The corner shows the exact version (**v2.0.5**) instead of v2.0. What's New and its update notice still go by major.minor, so patch releases don't bring the notice back.
