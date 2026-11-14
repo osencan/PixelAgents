@@ -1,23 +1,23 @@
 # Contributing to Pixel Agents
 
-Thanks for your interest in contributing to Pixel Agents! All contributions are welcome — features, bug fixes, documentation improvements, refactors, and more.
+Thanks for your interest in contributing to Pixel Agents 2.x! All contributions are welcome — features, bug fixes, documentation improvements, refactors, and more.
 
 This project is licensed under the [MIT License](LICENSE), so your contributions will be too. No CLA or DCO is required.
 
-Questions while you work on something? Ask in [Discord](https://discord.gg/Yk7jXebv9H).
+Questions while you work on something? Open an [issue](https://github.com/osencan/PixelAgents/issues).
 
 ## Getting Started
 
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) (use the version in [`.nvmrc`](.nvmrc), currently v22)
-- [VS Code](https://code.visualstudio.com/) (v1.105.0 or later)
+- [VS Code](https://code.visualstudio.com/) (v1.105.0 or later), only to work on the extension. Version 2.x is developed and tested with the standalone browser app
 
 ### Setup
 
 ```bash
-git clone https://github.com/pixel-agents-hq/pixel-agents.git
-cd pixel-agents
+git clone https://github.com/osencan/PixelAgents.git
+cd PixelAgents
 npm install
 npm run build
 ```
@@ -28,7 +28,7 @@ Then press **F5** in VS Code to launch the Extension Development Host. To run th
 node dist/cli.js
 ```
 
-It prints a local URL, the same as `npx pixel-agents`.
+It prints a local URL with a `?token=`; open it in a browser.
 
 ### Build and install the packaged extension locally
 
@@ -58,18 +58,14 @@ The verifier runs the production `prepack` build, creates a tarball outside the 
 
 ### Maintainer release checklist
 
-A published GitHub Release coordinates publishing to the VS Code Marketplace, Open VSX, and npm through [`.github/workflows/publish-extension.yml`](.github/workflows/publish-extension.yml). Publishing is release-driven, not triggered by a push to `main` alone.
-
-One-time npm setup: configure the `pixel-agents` package's GitHub Actions [trusted publisher](https://docs.npmjs.com/trusted-publishers/) for `pixel-agents-hq/pixel-agents`, workflow `publish-extension.yml`, no environment, and allow `npm publish`.
-The GitHub-hosted workflow enforces Node >=22.14.0 and npm >=11.5.1 and uses OIDC (`id-token: write`); do not configure a long-lived publish token, and revoke any unused one.
+Pixel Agents 2.x is released on GitHub only. It is not published to npm, the VS Code Marketplace or Open VSX (those listings belong to the original 1.x project), so a release no longer triggers [`.github/workflows/publish-extension.yml`](.github/workflows/publish-extension.yml). You can still run that workflow by hand in dry-run mode to check the packages.
 
 For each release:
 
-1. Update `CHANGELOG.md`, then set the same new version in the root `package.json` and both root-version fields in `package-lock.json`. The private workspace manifests are not released and do not receive the extension version.
-2. Run `npm ci`, `npm test`, and `npm run verify:npm-package`. Inspect the generated package if needed by manually dispatching **Publish Extension** in dry-run mode and downloading its `npm-package-*` artifact; manual dispatch never publishes to npm.
-3. Merge the release changes into `main` and wait for CI to pass.
-4. Create and publish a GitHub Release whose tag is exactly `v<package.json version>` and points to that commit on `main` (for example, `v1.4.0`). The npm job rejects a mismatched tag, ref, package identity, non-incrementing version, or changed tarball integrity.
-5. Confirm the Marketplace, Open VSX, and npm jobs succeeded, and verify the new npm version with `npm view pixel-agents version`.
+1. Update `CHANGELOG.md`, then set the same new version in the root `package.json` and both root-version fields in `package-lock.json`. The private workspace manifests are not released and do not receive the version.
+2. Run `npm ci`, `npm test`, `npm run format:check`, `npm run e2e:inventory` (commit any change to `e2e/README.md`) and `npm run verify:npm-package`.
+3. Push the release commit to `main` and wait for CI to pass.
+4. Create a GitHub Release whose tag is exactly `v<package.json version>` (for example, `v2.0.3`), pointing at that commit's full SHA.
 
 ## Development Workflow
 
@@ -110,7 +106,7 @@ Pixel Agents uses a layered codebase. `core/` depends on nothing; `server/` and 
 | Directory                        | Description                                                                                                                                                                                                                                           |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `core/`                          | Protocol + interface definitions (AsyncAPI 3.0 contract, HookProvider, MessageTransport, StateAdapter). Zero runtime side effects.                                                                                                                    |
-| `server/`                        | Lifecycle runtime: `AgentRuntime`, `AgentStateStore`, `SessionRouter`, `DismissalTracker`, Fastify HTTP/WS server, file watching, transcript parsing, hook installer, providers, Vitest test suite. Also ships the `npx pixel-agents` standalone CLI. |
+| `server/`                        | Lifecycle runtime: `AgentRuntime`, `AgentStateStore`, `SessionRouter`, `DismissalTracker`, Fastify HTTP/WS server, file watching, transcript parsing, hook installer, providers, Vitest test suite. Also builds the standalone CLI (`dist/cli.js`). |
 | `adapters/vscode/`               | VS Code surface — `extension.ts`, `WebviewViewProvider`, terminal lifecycle, one-time state migration. Composes `core/` and `server/`.                                                                                                                |
 | `webview-ui/`                    | React 19 + Canvas UI. Transport abstraction (`PostMessageTransport` + `WebSocketTransport`). Depends only on `core/`.                                                                                                                                 |
 | `webview-ui/public/assets/`      | Bundled office art: furniture (one folder and `manifest.json` per item), floors, walls, carpets, pets, and the default layout.                                                                                                                        |
@@ -306,11 +302,11 @@ The staged output serves the combined `e2e`, `server`, and `webview` Allure repo
 
 ## Reporting Bugs
 
-[Open a bug report](https://github.com/pixel-agents-hq/pixel-agents/issues/new?template=bug_report.yml) — the form will guide you through providing the details we need.
+[Open a bug report](https://github.com/osencan/PixelAgents/issues/new?template=bug_report.yml) — the form will guide you through providing the details we need.
 
 ## Feature Requests
 
-Have an idea? [Open a feature request](https://github.com/pixel-agents-hq/pixel-agents/issues/new?template=feature_request.yml) — the form will guide you through describing the problem and your proposed solution. You can also browse and join ongoing conversations in [Discussions](https://github.com/pixel-agents-hq/pixel-agents/discussions).
+Have an idea? [Open a feature request](https://github.com/osencan/PixelAgents/issues/new?template=feature_request.yml) — the form will guide you through describing the problem and your proposed solution.
 
 ## Security Issues
 

@@ -1,14 +1,15 @@
 name: Publish Extension
 
+# Pixel Agents 2.x is not published to npm, the VS Code Marketplace or Open VSX
+# (those listings belong to the original 1.x project), so releases no longer
+# trigger this workflow. Run it by hand in dry-run mode to verify packaging.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       dry_run:
         description: 'Package without publishing'
         type: boolean
-        default: false
+        default: true
 
 concurrency:
   group: publish-extension

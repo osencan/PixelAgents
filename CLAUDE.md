@@ -2,6 +2,8 @@
 
 Pixel art office where AI agents (Claude Code terminals today, any tool tomorrow) become animated characters. Ships as a **VS Code extension** and an **`npx pixel-agents` standalone CLI** from the same source tree.
 
+**This repository is Pixel Agents 2.x** ([osencan/PixelAgents](https://github.com/osencan/PixelAgents)), its own line continued from upstream v1.6.0 and never merged back. 2.x adds Codex sessions, reported/guessed lifecycles, agent controls (PIN-unlocked approvals, hiring agents), rooms with a purpose and more: see `FORK.md`. It is run from source (`node dist/cli.js`) and is not published to npm, the VS Code Marketplace or Open VSX; the identities below that name those listings describe the original 1.x project.
+
 `CONTEXT.md` is the canonical glossary — read it for what terms like Agent, Sub-agent, Teammate, Lead, Adopt, or Headless agent mean here, and use its vocabulary in code, comments, and docs.
 
 ## Architecture
@@ -267,7 +269,7 @@ webview-ui/                          npm workspace
 
 ## Distribution
 
-Two artifacts from one source tree:
+Two artifacts from one source tree (2.x builds both but releases only on GitHub; the listings named here are 1.x's):
 
 - **VS Code extension** (`.vsix`) — `pablodelucca.pixel-agents` on VS Code Marketplace and Open VSX. Bundles VS Code adapter + webview SPA + assets + hook scripts.
 - **npm package** (`pixel-agents`) — `npx pixel-agents [--port 3100]` runs the Fastify server and serves the SPA on the same port. Bundles CLI + webview SPA + assets + hook scripts + `core/asyncapi.yaml` (so third-party clients can regenerate from it).
@@ -798,7 +800,7 @@ Supporting: `wall-tile-editor.html` (wall sprite editing), `jsonl-viewer.html` (
 
 ## Project Identity
 
-- Extension ID: `pablodelucca.pixel-agents` (VS Code Marketplace + Open VSX)
-- npm package: `pixel-agents` (CLI bin: `pixel-agents`)
-- GitHub: `https://github.com/pixel-agents-hq/pixel-agents`
+- GitHub: `https://github.com/osencan/PixelAgents` (2.x). Original 1.x: `https://github.com/pixel-agents-hq/pixel-agents`
+- Version: 2.x, from the root `package.json`
+- Extension ID `pablodelucca.pixel-agents` and npm package `pixel-agents` (CLI bin: `pixel-agents`) are the original project's listings; 2.x is not published to them
 - License: MIT
