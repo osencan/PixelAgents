@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.1.0
+
+Ideas adapted from [The Lobby](https://github.com/Lilykos/orca-the-lobby) (MIT), an Orca plugin with its own pixel office.
+
+- **Tokens used today:** the detail panel shows this session's tokens for the day (input, output, cache read and written), its model, how often it was compacted, and its project's total. They come from the local Claude transcripts and Codex rollouts. Counts only, with no cost estimate, and only on pages opened with the token.
+- **Quiet agents:** a working agent with no news for a while reads **Stuck?**, and an approval request left waiting reads **Still needs you**. Both are guesses. Each quiet spell notifies once. Choose the threshold, or turn it off, in **Settings → This browser only**. A new switch there, **Finished turns: only over a minute**, keeps quick turns quiet.
+- **Speech bubbles:** after a turn ends, the first line of the reply floats over the character for 20 seconds (token pages only; read-only pages keep the plain ✓). A quiet agent shows **Stuck?**.
+- **Keyboard triage:** **Alt+↓ / Alt+↑** step through the agents: those that need you, then stuck ones, then working ones, then the rest. The order holds still for 2.5 seconds while you step.
+- **More in the panel** (token pages only):
+  - the project's uncommitted changes (files, +insertions −deletions);
+  - Claude's title for the conversation;
+  - its latest todo list;
+  - the last 8 files it edited.
+- **History survives restarts:** the last 24 hours of activity are kept in `~/.pixel-agents/history.json` (metadata only, at most 200 KB). **Settings → Clear activity history** empties it.
+
 ## v2.0.6
 
 - **Clearer control PIN:** Settings → Agent controls now says that the PIN is set on the computer running Pixel Agents (which needs none itself) and typed on each other device in its own Settings → Agent controls; the unlock field says which PIN it wants. The README explains the same two roles.

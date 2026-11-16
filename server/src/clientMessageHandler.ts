@@ -6,7 +6,7 @@ import { rosterPick } from '../../core/src/paletteUtils.js';
 import type { HookProvider } from '../../core/src/provider.js';
 import { resendAgentActivity } from './agentActivityResend.js';
 import { buildAgentDiagnostics } from './agentDiagnostics.js';
-import { sendLifecycleSnapshot } from './agentLifecycle.js';
+import { clearAllHistory, sendLifecycleSnapshot } from './agentLifecycle.js';
 import { agentKey } from './agentMessages.js';
 import type { AgentRuntime } from './agentRuntime.js';
 import type { AgentStateStore } from './agentStateStore.js';
@@ -67,6 +67,9 @@ import { recentCharactersMessage, recordCharacterUse } from './recentCharacters.
 import { launchStandaloneAgent } from './terminal/standaloneAgentLauncher.js';
 import type { TerminalSessions } from './terminal/terminalSessions.js';
 import { applyUsageBridgeChoice, usageSnapshotMessages } from './usageLimits.js';
+import { usageTodaySnapshot } from './usageTotals.js';
+import { workingTreeSnapshot } from './workingTree.js';
+import { sendWorkItemsSnapshot } from './workItems.js';
 
 type WsSend = (message: Record<string, unknown>) => void;
 
@@ -383,6 +386,12 @@ export function handleClientMessage(
         ctx.ptyManager?.dispose(id);
         runtime.closeAgent(id);
       }
+      break;
+    }
+
+    case 'clearHistory': {
+      // Tokened only (the gate above): forget every agent's history, on disk too.
+      clearAllHistory(store);
       break;
     }
 
@@ -938,6 +947,13 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   resendAgentActivity(send, store);
   sendLifecycleSnapshot(store, send);
   if (ctx.privileged) send(approvalOptInsMessage(store));
+  const usage = ctx.privileged ? usageTodaySnapshot() : undefined;
+  if (usage) send({ ...usage });
+  if (ctx.privileged) {
+    sendWorkItemsSnapshot(store, send);
+    const tree = workingTreeSnapshot();
+    if (tree) send({ ...tree });
+  }
   permissionBrokerFor(store)?.snapshot(send);
 
   // 9. Re-announce live terminals AFTER existingAgents, so a browser that

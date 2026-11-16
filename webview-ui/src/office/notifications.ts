@@ -11,7 +11,7 @@ export interface Toast {
   key: number;
   agentId: number;
   text: string;
-  kind: 'approval' | 'finished' | 'failed';
+  kind: 'approval' | 'finished' | 'failed' | 'stuck';
 }
 
 let toasts: Toast[] = [];
@@ -137,4 +137,5 @@ export const NOTICE_TEXT: Record<Toast['kind'], string> = {
   approval: 'needs your approval',
   finished: 'finished its turn',
   failed: 'had a tool fail',
+  stuck: 'has gone quiet',
 };

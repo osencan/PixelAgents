@@ -36,6 +36,11 @@ export const PRIVILEGED_BROADCAST_TYPES: ReadonlySet<string> = new Set([
   'usageBridgeStatus',
   // Which projects accept browser approvals: for tokened (control) panels only.
   'approvalOptIns',
+  // Tokens used today, per agent and project (usageTotals.ts).
+  'usageToday',
+  // Todos, edited files and titles; uncommitted changes (workItems.ts, workingTree.ts).
+  'agentWorkItems',
+  'workingTreeChanges',
 ]);
 
 let cache: Record<string, StoredUsage> | null = null;

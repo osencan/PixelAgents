@@ -90,6 +90,7 @@ export function SettingsModal({
   // (usageBridgeStatus) undefined hides the row: this host was not told, or
   // has no usage bridge.
   const [confirmUsageBars, setConfirmUsageBars] = useState(false);
+  const [confirmClearHistory, setConfirmClearHistory] = useState(false);
   const { status: usageBridge, pending: usagePending, setEnabled: setUsageBars } = useUsageBridge();
 
   return (
@@ -286,6 +287,27 @@ export function SettingsModal({
           onChange={onToggleShowHostDirectories}
         />
         <Checkbox label="Debug View" checked={isDebugMode} onChange={onToggleDebugMode} />
+        {tokened &&
+          (confirmClearHistory ? (
+            <div className="flex items-center gap-8 py-4 px-10 text-sm">
+              <span className="flex-1">Clear every agent's activity history?</span>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => {
+                  transport.send({ type: 'clearHistory' });
+                  setConfirmClearHistory(false);
+                }}
+              >
+                Clear
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmClearHistory(false)}>
+                Keep
+              </Button>
+            </div>
+          ) : (
+            <MenuItem onClick={() => setConfirmClearHistory(true)}>Clear activity history</MenuItem>
+          ))}
         <div className="flex flex-col px-10 py-6 border-t-2 border-border">
           <span className="text-sm text-text-muted leading-tight">
             This browser only (other devices keep their own):

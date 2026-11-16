@@ -10,15 +10,19 @@
  * - A turn with no tool and no data for STALE_AFTER_MS is "unknown", not sleep.
  */
 import type { AgentLifecycleState } from '../../core/src/messages.js';
+import { agentKey } from './agentMessages.js';
 import type { AgentStateStore } from './agentStateStore.js';
+import { type HistoryByKey, readHistoryFile, writeHistoryFile } from './historyFile.js';
 import type { AgentState } from './types.js';
 
 /** Silence (mid-turn, no tool running) after which the state is unknown. */
 export const LIFECYCLE_STALE_AFTER_MS = 10 * 60_000;
 /** How often silence is re-checked (event-driven otherwise). */
 const LIFECYCLE_RECHECK_MS = 15_000;
-/** Most recent history entries kept per agent (in memory only). */
-export const AGENT_HISTORY_MAX = 30;
+/** Most recent history entries kept per agent. */
+export const AGENT_HISTORY_MAX = 100;
+/** History changes are written to disk at most this often. */
+const HISTORY_SAVE_DELAY_MS = 5_000;
 
 /**
  * One history entry: metadata only -- a state change or a failed tool, when,
@@ -128,11 +132,23 @@ function lifecycleMessage(id: number, t: Tracked, replayed = false): Record<stri
 export interface AgentLifecycleService {
   /** Current states and recent history, for a (re)connecting client. */
   snapshot(send: (message: Record<string, unknown>) => void): void;
+  /** Forget all history, in memory and on disk; tell every client. */
+  clearHistory(): void;
   dispose(): void;
+}
+
+export interface AgentLifecycleOptions {
+  /** Keep the last day of history in this file across restarts (standalone server). */
+  historyFile?: string;
 }
 
 // The running service per store, so the reconnect path can replay states.
 const services = new WeakMap<AgentStateStore, AgentLifecycleService>();
+
+/** Forget all agents' history (the clearHistory message). */
+export function clearAllHistory(store: AgentStateStore): void {
+  services.get(store)?.clearHistory();
+}
 
 /** Replay current lifecycle states to one (re)connecting client. */
 export function sendLifecycleSnapshot(
@@ -142,17 +158,54 @@ export function sendLifecycleSnapshot(
   services.get(store)?.snapshot(send);
 }
 
-export function startAgentLifecycle(store: AgentStateStore): AgentLifecycleService {
+export function startAgentLifecycle(
+  store: AgentStateStore,
+  options: AgentLifecycleOptions = {},
+): AgentLifecycleService {
   const tracked = new Map<number, Tracked>();
   const scheduled = new Set<number>();
   // Last time any message about the agent went out (a provider event happened).
   const lastEventAt = new Map<number, number>();
   const history = new Map<number, AgentHistoryEntry[]>();
+  // On disk, by agentKey: ids are reassigned on restart, session keys are not.
+  const { historyFile } = options;
+  const saved: HistoryByKey = historyFile ? readHistoryFile(historyFile) : new Map();
+  // Last known key per id: a removed agent is already gone from the store.
+  const keyById = new Map<number, string>();
+  const keyOf = (id: number) => {
+    const agent = store.get(id);
+    if (agent) keyById.set(id, agentKey(agent));
+    return keyById.get(id);
+  };
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+  const saveNow = () => {
+    clearTimeout(saveTimer);
+    saveTimer = undefined;
+    if (!historyFile) return;
+    for (const [id, list] of history) {
+      const key = keyOf(id);
+      if (key) saved.set(key, list);
+    }
+    writeHistoryFile(historyFile, saved);
+  };
+  const persist = () => {
+    if (!historyFile || saveTimer) return;
+    saveTimer = setTimeout(saveNow, HISTORY_SAVE_DELAY_MS);
+    saveTimer.unref?.();
+  };
+  /** An agent (re)appeared: pick up its saved history, if any. */
+  const restore = (id: number) => {
+    if (history.has(id)) return;
+    const key = keyOf(id);
+    const prior = key ? saved.get(key) : undefined;
+    if (prior?.length) history.set(id, prior.slice(-AGENT_HISTORY_MAX));
+  };
   const record = (id: number, entry: AgentHistoryEntry) => {
     const list = history.get(id) ?? [];
     list.push(entry);
     if (list.length > AGENT_HISTORY_MAX) list.splice(0, list.length - AGENT_HISTORY_MAX);
     history.set(id, list);
+    persist();
   };
 
   const evaluate = (id: number) => {
@@ -219,8 +272,16 @@ export function startAgentLifecycle(store: AgentStateStore): AgentLifecycleServi
     }
     schedule(message.id);
   };
-  const onAdded = (id: number) => schedule(id);
+  const onAdded = (id: number) => {
+    restore(id);
+    schedule(id);
+  };
   const onRemoved = (id: number) => {
+    // Its saved copy stays (keyed by session) until it ages out.
+    const key = keyOf(id);
+    const list = history.get(id);
+    if (key && list) saved.set(key, list);
+    keyById.delete(id);
     tracked.delete(id);
     history.delete(id);
     lastEventAt.delete(id);
@@ -233,7 +294,10 @@ export function startAgentLifecycle(store: AgentStateStore): AgentLifecycleServi
     for (const [id] of store) evaluate(id);
   }, LIFECYCLE_RECHECK_MS);
   timer.unref();
-  for (const [id] of store) schedule(id);
+  for (const [id] of store) {
+    restore(id);
+    schedule(id);
+  }
 
   const service: AgentLifecycleService = {
     snapshot(send) {
@@ -245,7 +309,14 @@ export function startAgentLifecycle(store: AgentStateStore): AgentLifecycleServi
         if (entries?.length) send({ type: 'agentHistory', id, entries });
       }
     },
+    clearHistory() {
+      history.clear();
+      saved.clear();
+      saveNow();
+      for (const [id] of store) store.broadcast({ type: 'agentHistory', id, entries: [] });
+    },
     dispose() {
+      if (saveTimer) saveNow();
       clearInterval(timer);
       store.off('broadcast', onBroadcast);
       store.off('agentAdded', onAdded);

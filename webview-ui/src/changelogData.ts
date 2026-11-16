@@ -29,6 +29,30 @@ export const SPONSOR_URL = 'https://github.com/sponsors/osencan';
 
 export const changelogEntries: ChangelogEntry[] = [
   {
+    version: '2.1',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'Tokens used today in the detail panel: by session, model and project, with compactions (no cost estimate)',
+          '"Stuck?" and "Still needs you" for agents that went quiet, with a threshold in Settings → This browser only',
+          'Speech bubbles: the first line of a reply after a turn ends, or "Stuck?"',
+          'Alt+↓ / Alt+↑ step through the agents, the ones that need you first',
+          'Uncommitted changes, the conversation title, todos and recently edited files in the panel',
+          'Activity history survives restarts (last 24 hours; Settings → Clear activity history)',
+        ],
+      },
+    ],
+    contributors: [
+      {
+        name: 'The Lobby',
+        url: 'https://github.com/Lilykos/orca-the-lobby',
+        description:
+          'an Orca plugin with a pixel office (MIT), where several of these ideas come from',
+      },
+    ],
+  },
+  {
     version: '2.0',
     sections: [
       {

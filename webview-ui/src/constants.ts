@@ -910,7 +910,7 @@ export const RETIRE_MAX_SEC = 20;
 
 // ── Activity history & notifications ───────────────────────
 /** Most recent history entries kept per agent in the browser (matches the server). */
-export const AGENT_HISTORY_MAX = 30;
+export const AGENT_HISTORY_MAX = 100;
 /** History entries listed in the detail panel. */
 export const AGENT_DETAIL_HISTORY_ROWS = 10;
 /** localStorage key: whether this viewer gets activity notifications (per browser). */
@@ -961,5 +961,20 @@ export const AMBIENT_REFRESH_MS = 60_000;
 export const AMBIENT_STORAGE_KEY = 'pixel-agents.ambientTint';
 /** localStorage key: whether this viewer sees lines from a selected agent to its subagents. */
 export const LINK_LINES_STORAGE_KEY = 'pixel-agents.linkLines';
+/** localStorage key: this viewer's "stuck" threshold and long-turns-only choice. */
+export const STUCK_STORAGE_KEY = 'pixel-agents.stuck';
+/** Quiet minutes before a working agent reads "Stuck?" (0 = off). */
+export const STUCK_MINUTES_OPTIONS = [0, 10, 20, 30, 60] as const;
+export const STUCK_MINUTES_DEFAULT = 20;
+/** With "long turns only", a finished turn shorter than this stays quiet. */
+export const LONG_TURN_MS = 60_000;
+/** How often the office checks for agents that went quiet. */
+export const STUCK_CHECK_MS = 15_000;
+/** How long the first line of a finished reply speaks over the character. */
+export const SPEECH_REPLY_MS = 20_000;
+/** Longest reply shown in the bubble (characters, never splitting an emoji). */
+export const SPEECH_REPLY_MAX_CHARS = 48;
+/** Alt+arrow triage keeps its order this long after a step, so it doesn't reshuffle mid-run. */
+export const TRIAGE_FREEZE_MS = 2_500;
 /** Longest pinned project display name (the server enforces the same). */
 export const PROJECT_LABEL_MAX_LENGTH = 40;
