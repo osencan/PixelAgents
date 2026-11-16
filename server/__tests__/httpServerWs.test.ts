@@ -430,8 +430,11 @@ describe('/ws privileged-message gate', () => {
   });
 
   // The reverse-proxy case --allowed-host exists for: Tailscale Serve forwards
-  // to the loopback bind with its public name as Host and Origin.
-  it('allows setHooksEnabled through a reverse proxy named with --allowed-host', async () => {
+  // to the loopback bind with its public name as Host and Origin. The token is
+  // honored there (the page is privileged), but a relayed connection is not
+  // this machine: changing Claude's settings.json is host configuration and
+  // needs the control PIN, like answering permissions.
+  it('refuses setHooksEnabled through a reverse proxy until controls are unlocked', async () => {
     const proxy = 'my-mac.tailnet.ts.net';
     const { port, token } = await startStandalone([proxy]);
 
@@ -441,9 +444,27 @@ describe('/ws privileged-message gate', () => {
     );
     sockets.push(result.socket);
 
+    const refused = waitForMessage(result.socket, 'controlRefused');
     await sendToggle(result.socket, true);
-    expect(sideEffects).toEqual([true]);
-    expect(readHooksConsent()).toBe(true);
+    expect(await refused).toMatchObject({ action: 'setHooksEnabled' });
+    expect(sideEffects).toEqual([]);
+    expect(readHooksConsent()).toBe(false);
+  });
+
+  // A page subscribes after its socket opens (an iPad lost the first
+  // controlAccess and showed "No control PIN yet"): webviewReady re-sends it.
+  it('re-sends controlAccess on webviewReady for a late listener', async () => {
+    const { port, token } = await startStandalone();
+    const result = await connectTo(
+      `ws://127.0.0.1:${port.toString()}/ws?token=${encodeURIComponent(token)}`,
+      { Origin: `http://127.0.0.1:${port.toString()}` },
+    );
+    sockets.push(result.socket);
+    // Let the on-open controlAccess go by unheard, then start listening.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const access = waitForMessage(result.socket, 'controlAccess');
+    result.socket.send(JSON.stringify({ type: 'webviewReady' }));
+    expect(await access).toMatchObject({ type: 'controlAccess', local: true });
   });
 
   // ── The in-app consent dialog rides the same privilege boundary ──

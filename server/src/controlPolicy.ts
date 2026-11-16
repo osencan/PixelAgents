@@ -72,7 +72,14 @@ function read(): ControlFile {
 
 function write(next: ControlFile): void {
   cache = next;
-  writeJsonAtomic(path.join(controlDir(), 'control.json'), next);
+  const file = path.join(controlDir(), 'control.json');
+  writeJsonAtomic(file, next);
+  // It holds the PIN's hash: owner-only, like the token and the audit log.
+  try {
+    fs.chmodSync(file, 0o600);
+  } catch {
+    /* best effort: the hash is salted scrypt either way */
+  }
 }
 
 // ── Where a connection comes from ─────────────────────────────

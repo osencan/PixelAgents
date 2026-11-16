@@ -170,6 +170,7 @@ describe('clientMessageHandler: areas + carpet wire ordering', () => {
     it('setHooksEnabled reports the actual outcome after the side effect settles', async () => {
       let sideEffectRan = false;
       ctx.privileged = true;
+      ctx.control = true;
       ctx.onSetHooksEnabled = async () => {
         sideEffectRan = true;
       };
@@ -254,6 +255,7 @@ describe('clientMessageHandler: areas + carpet wire ordering', () => {
     // The happy path still persists, or the toggle would do nothing at all.
     it('persists the preference when the outcome matches the request', async () => {
       ctx.privileged = true;
+      ctx.control = true;
       ctx.onSetHooksEnabled = () => seedInstalledHooks();
 
       handleClientMessage(
@@ -1087,6 +1089,26 @@ describe('clientMessageHandler: standalone terminal control plane', () => {
     dispatch(launch(), ctx({ runtime, ptyManager: manager, control: false, local: false }));
     expect(store.size).toBe(0);
     expect(sent).toContainEqual({ type: 'controlRefused', action: 'launchAgent' });
+  });
+
+  it('a tokened client without control cannot change host configuration', () => {
+    const before = readConfig().externalAssetDirectories;
+    dispatch(
+      { type: 'addExternalAssetDirectory', path: '/anywhere/on/disk' },
+      ctx({ control: false, local: false }),
+    );
+    expect(readConfig().externalAssetDirectories).toEqual(before);
+    expect(sent).toContainEqual({ type: 'controlRefused', action: 'addExternalAssetDirectory' });
+    // The optimistic list snaps back to the real one.
+    expect(sent).toContainEqual({ type: 'externalAssetDirectoriesUpdated', dirs: before });
+
+    const hooksBefore = getHooksEnabled('claude');
+    dispatch(
+      { type: 'setHooksEnabled', providerId: 'claude', enabled: !hooksBefore },
+      ctx({ control: false, local: false }),
+    );
+    expect(getHooksEnabled('claude')).toBe(hooksBefore);
+    expect(sent).toContainEqual({ type: 'controlRefused', action: 'setHooksEnabled' });
   });
 
   it('refuses setBypassPermissions from an unprivileged client and tells it the truth', () => {

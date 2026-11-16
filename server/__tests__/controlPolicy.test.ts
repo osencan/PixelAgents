@@ -153,3 +153,14 @@ describe('controlPolicy', () => {
     expect(policy.verifyControlPin('482913', '192.168.1.50', now + 1)).toEqual({ ok: true });
   });
 });
+
+describe('health endpoint body', () => {
+  it('gives process details to this machine only', async () => {
+    const { healthBody } = await import('../src/httpServer.js');
+    expect(healthBody('127.0.0.1', { host: '127.0.0.1:3100' })).toMatchObject({
+      status: 'ok',
+      pid: process.pid,
+    });
+    expect(healthBody('192.0.2.44', { host: '192.0.2.1:3100' })).toEqual({ status: 'ok' });
+  });
+});

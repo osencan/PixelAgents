@@ -163,12 +163,26 @@ export async function createHttpServer(options: HttpServerOptions): Promise<Http
 
 // ── Health ──────────────────────────────────────────────────────
 
-function registerHealthRoute(app: FastifyInstance): void {
-  app.get('/api/health', async () => ({
+/**
+ * Liveness for anyone; uptime and PID only for this machine. A LAN-bound
+ * server answers its whole network here, and they don't need process details.
+ */
+export function healthBody(
+  peerAddress: string | undefined,
+  headers: Record<string, string | string[] | undefined>,
+): Record<string, unknown> {
+  if (!isLocalRequest(peerAddress, headers)) return { status: 'ok' };
+  return {
     status: 'ok',
     uptime: Math.floor((Date.now() - startTime) / 1000),
     pid: process.pid,
-  }));
+  };
+}
+
+function registerHealthRoute(app: FastifyInstance): void {
+  app.get('/api/health', async (request) =>
+    healthBody(request.socket.remoteAddress, request.headers),
+  );
 }
 
 // ── Hook Events ────────────────────────────────────────────────
@@ -423,6 +437,10 @@ function registerWebSocketRoute(
         if (!options.embedded && msg.type) {
           console.log('[Pixel Agents] WS client message:', msg.type);
         }
+        // The page subscribes after its socket opens, so the controlAccess sent
+        // on open can arrive before anyone listens (seen on an iPad: "No control
+        // PIN yet" with a PIN set). webviewReady means it listens now: say it again.
+        if (!options.embedded && msg.type === 'webviewReady') sendControlAccess();
         if (!options.embedded && privileged && msg.type === 'unlockControl') {
           if (local) {
             control = true;

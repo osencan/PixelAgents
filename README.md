@@ -5,7 +5,7 @@
 <div align="center">
 
 [![license](https://img.shields.io/github/license/osencan/PixelAgents?color=0183ff&style=flat)](LICENSE)
-[![version](https://img.shields.io/badge/version-2.1.0-0183ff?style=flat)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-2.1.1-0183ff?style=flat)](CHANGELOG.md)
 [![sponsor](https://img.shields.io/badge/sponsor-%E2%99%A5-ea4aaa?style=flat)](https://github.com/sponsors/osencan)
 
 </div>
@@ -136,7 +136,10 @@ Then:
 ## Privacy and security
 
 - **Read-only viewers** (no token) see tool activity only as categories ("Running a command", "Editing a file"): never file names, commands or prompt text. Token usage, uncommitted changes, conversation titles, todos, edited files and reply text go to tokened pages only.
-- **Control** needs the token plus either the server's own machine or the PIN. Relayed requests (a reverse proxy) also need the PIN.
+- **The token alone** lets a device arrange the office: layout, rooms, characters, Directories and display settings.
+- **Control** needs the token plus either the server's own machine or the PIN. It covers agents (approvals, hiring, typing, closing) and this computer's setup: installing Claude hooks or Usage Bars (both write `~/.claude/settings.json`) and adding asset folders. Relayed requests (a reverse proxy) also need the PIN.
+- **The token URL is a password.** It can end up in browser history, bookmarks, screenshots and chats. If it leaks, restart with `--rotate-token`: every old URL stops working.
+- **`/api/health`** answers anyone with `{"status":"ok"}`; uptime and process id go only to this machine.
 - **Approvals** are signed with a key that never leaves the machine, so nothing else listening on the port can approve a tool call.
 - **Skip-permissions is disabled**: agents launched here always ask.
 - **Audit log**: every control action is appended to `~/.pixel-agents/control-audit.jsonl`, with what, when and from where, but never PINs, commands or prompts.
