@@ -5,7 +5,7 @@
 <div align="center">
 
 [![license](https://img.shields.io/github/license/osencan/PixelAgents?color=0183ff&style=flat)](LICENSE)
-[![version](https://img.shields.io/badge/version-2.0.6-0183ff?style=flat)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-2.1.0-0183ff?style=flat)](CHANGELOG.md)
 [![sponsor](https://img.shields.io/badge/sponsor-%E2%99%A5-ea4aaa?style=flat)](https://github.com/sponsors/osencan)
 
 </div>
@@ -33,6 +33,10 @@ Pixel Agents turns the AI coding agents running in your terminals into animated 
 - **Honest statuses**: thinking, planning, reading, editing, running, waiting for permission or for input, idle, or no recent activity. Each is marked **reported** (from a hook or log) or **guessed**. Only a real permission request means "needs approval".
 - **Detail panel**: click a character to see what it's doing, for how long, what it's asking for, this turn's tool steps, its subagents and parent, context use, and recent history.
 - **Quiet notifications** for approval requests, finished turns, failed tools and test/build results.
+- **Tokens used today**, by session, model and project, with compaction counts, read from the local logs. Counts only, with no cost estimate. The panel also shows the project's uncommitted changes, the conversation's title, its todo list and the files it edited last.
+- **Quiet agents and speech bubbles:** a working agent with no news for a while reads **Stuck?** (a guess, with a threshold you choose). After a turn ends, the first line of its reply floats over its head.
+- **Keyboard triage:** **Alt+↓ / Alt+↑** step through the agents, the ones that need you first.
+- **History that survives restarts**: the last 24 hours, metadata only.
 - **Subtasks as agents (experimental, off by default)**: turn on **Settings → Show Subtasks as Agents** and each running Claude Code `/subtask` gets its own character beside its session's agent, labelled _Subagent_, _Running_ and the project. Its approval requests light up its own character (with Approve/Deny in an opted-in project). When the subtask finishes, it walks to the rest room and leaves.
 - **Rooms with a purpose**: give each painted area a purpose (Work, Rest, Waiting or Planning). Idle agents walk to the rest room and doze after a while, permission waits can queue in a waiting room, and Claude sessions in plan mode can gather in a planning room.
 
@@ -131,7 +135,7 @@ Then:
 
 ## Privacy and security
 
-- **Read-only viewers** (no token) see tool activity only as categories ("Running a command", "Editing a file"): never file names, commands or prompt text.
+- **Read-only viewers** (no token) see tool activity only as categories ("Running a command", "Editing a file"): never file names, commands or prompt text. Token usage, uncommitted changes, conversation titles, todos, edited files and reply text go to tokened pages only.
 - **Control** needs the token plus either the server's own machine or the PIN. Relayed requests (a reverse proxy) also need the PIN.
 - **Approvals** are signed with a key that never leaves the machine, so nothing else listening on the port can approve a tool call.
 - **Skip-permissions is disabled**: agents launched here always ask.
@@ -160,7 +164,8 @@ Open the roster from the arrow beside **+** and press a character's pencil (or *
 
 - **Claude hooks** (default): a hook script sends Claude Code events (`SessionStart`, `PreToolUse`, `PermissionRequest`, `Stop`, …) to the running server, which also reads session transcripts under `~/.claude/projects/` for details. For opted-in projects, the hook asks the server for a browser decision on `PermissionRequest` and prints Claude's documented decision output. With no decision, the normal terminal prompt decides.
 - **Codex**: rollout logs under `$CODEX_HOME/sessions` are tailed read-only.
-- **Statuses** are derived on the server into one lifecycle per agent, replayed on reconnect, with a bounded in-memory history.
+- **Statuses** are derived on the server into one lifecycle per agent, replayed on reconnect. The history is metadata only and is kept for 24 hours in `~/.pixel-agents/history.json`.
+- **Tokens used today** come from the same local logs: Claude usage is counted once per message, and Codex's running totals are turned into per-step deltas. Uncommitted changes come from a read-only `git diff --shortstat HEAD` every 15 seconds. Set `PIXEL_AGENTS_USAGE=0` or `PIXEL_AGENTS_GIT_CHANGES=0` to turn either off.
 
 Pixel Agents doesn't modify Claude Code. Its hook entries live in `~/.claude/settings.json`, and its own data under `~/.pixel-agents/`.
 
@@ -189,6 +194,8 @@ If Pixel Agents 2.0 is useful to you, consider [sponsoring its development](http
 ## Credits and thanks
 
 Pixel Agents 2.0 builds on [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents) 1.x, created by [Pablo De Lucca](https://github.com/pablodelucca) and its contributors. The office, layout editor, characters, radio and much more come from their work. Thank you! Consider [supporting the original project](https://github.com/sponsors/pablodelucca). Version 2.0 continues from v1.6.0 as its own line and is not affiliated with or endorsed by the original project.
+
+Several 2.1 features (token totals, quiet-agent detection, speech bubbles, keyboard triage, the persisted history) adapt ideas from [The Lobby](https://github.com/Lilykos/orca-the-lobby) by Lilykos (MIT). Thank you!
 
 Character art is based on [JIK-A-4, Metro City](https://jik-a-4.itch.io/metrocity-free-topdown-character-pack).
 

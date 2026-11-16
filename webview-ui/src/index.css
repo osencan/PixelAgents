@@ -320,6 +320,15 @@
     outline: 2px solid var(--color-status-error);
   }
 
+  /* What an agent says over its head: its reply's first line, or "Stuck?". */
+  .speech-bubble {
+    outline: 2px solid var(--color-border);
+  }
+  .speech-stuck {
+    outline: 2px dashed var(--color-status-permission);
+    color: var(--color-status-permission);
+  }
+
   /* A sleeping agent's floating Zz (rest room, after the sleep delay). */
   .sleep-zz {
     color: var(--color-text-muted);

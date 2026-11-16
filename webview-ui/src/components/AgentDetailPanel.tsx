@@ -26,7 +26,16 @@ import type { OfficeState } from '../office/engine/officeState.js';
 import { setAgentHidden, useIsAgentHidden } from '../office/hiddenAgents.js';
 import { getPendingPermission, usePermissionsVersion } from '../office/permissionRequests.js';
 import { projectAccent } from '../office/projectPrefs.js';
+import { quietState, quietText, useStuckPrefsVersion } from '../office/stuckAgents.js';
 import type { ToolActivity } from '../office/types.js';
+import {
+  agentUsageToday,
+  formatTokens,
+  projectUsageToday,
+  sumModels,
+  tokenTotal,
+} from '../office/usageToday.js';
+import { getTreeChanges, getWorkItems, treeChangesText } from '../office/workItems.js';
 import { transport } from '../transport/index.js';
 import { PermissionButtons } from './PermissionButtons.js';
 import { Button } from './ui/Button.js';
@@ -54,6 +63,51 @@ function formatDuration(ms: number): string {
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m ${s % 60}s`;
   return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+/** Today's tokens for this session (and its project): counts only, no cost. */
+function UsageSection({
+  usage,
+  projectTotal,
+}: {
+  usage: NonNullable<ReturnType<typeof agentUsageToday>>;
+  projectTotal?: number;
+}) {
+  const sum = sumModels(usage.models);
+  return (
+    <div className="flex flex-col gap-4" data-testid="agent-usage-today">
+      <span className="text-text-muted">Today</span>
+      {usage.models.length > 0 && (
+        <Row label="Tokens">
+          {formatTokens(tokenTotal(usage.models))}
+          <span className="text-text-muted">
+            {` · in ${formatTokens(sum.input)} · out ${formatTokens(sum.output)} · cache ${formatTokens(sum.cacheRead)} read, ${formatTokens(sum.cacheWrite)} written`}
+          </span>
+        </Row>
+      )}
+      {usage.models.length === 1 && <Row label="Model">{usage.models[0].model}</Row>}
+      {usage.models.length > 1 &&
+        usage.models.map((m) => (
+          <Row key={m.model} label="Model">
+            {m.model}
+            <span className="text-text-muted">{` · ${formatTokens(tokenTotal([m]))}`}</span>
+          </Row>
+        ))}
+      {usage.compactions > 0 && (
+        <Row label="Compacted">
+          {usage.compactions === 1 ? 'once' : `${usage.compactions} times`}
+          <span className="text-text-muted"> this session</span>
+        </Row>
+      )}
+      {usage.contextWindow && <Row label="Window">{formatTokens(usage.contextWindow)} tokens</Row>}
+      {projectTotal !== undefined && usage.project && (
+        <Row label="Project">
+          {formatTokens(projectTotal)}
+          <span className="text-text-muted">{` · all of ${usage.project} today`}</span>
+        </Row>
+      )}
+    </div>
+  );
 }
 
 /** Select value for a custom role (typed in a text field). */
@@ -119,6 +173,7 @@ export function AgentDetailPanel({
 
   // The viewer's role badge for this agent (per browser).
   useAgentRolesVersion();
+  useStuckPrefsVersion();
   const role = getAgentRole(agentId);
   const [editingRole, setEditingRole] = useState(false);
   const [renamingProject, setRenamingProject] = useState(false);
@@ -177,6 +232,11 @@ export function AgentDetailPanel({
     (c) => c.leadAgentId === agentId && !c.isSubagent,
   );
   const history = getAgentHistory(agentId).slice(-AGENT_DETAIL_HISTORY_ROWS).reverse();
+  const quiet = quietState(agentId, life, now);
+  const work = getWorkItems(agentId);
+  const treeChanges = getTreeChanges(agentId);
+  const usage = agentUsageToday(agentId);
+  const projectUsage = projectUsageToday(usage?.project);
   const contextPct =
     ch.contextReported && ch.maxContextTokens > 0
       ? Math.round((ch.contextTokens / ch.maxContextTokens) * 100)
@@ -274,6 +334,12 @@ export function AgentDetailPanel({
           <Row label="State">
             {lifecycleText(life.lifecycle)}
             <span className="text-text-muted">{life.observed ? ' · reported' : ' · guessed'}</span>
+            {quiet && (
+              <span className="block text-status-permission" data-testid="agent-quiet">
+                {quietText(quiet, now)}
+                <span className="text-text-muted"> · guessed</span>
+              </span>
+            )}
           </Row>
         )}
         <Row label="For">{formatDuration(now - (life?.since ?? since.current.at))}</Row>
@@ -318,6 +384,8 @@ export function AgentDetailPanel({
           </Row>
         )}
         {ch.projectWorktree && <Row label="Worktree">{ch.projectWorktree}</Row>}
+        {treeChanges && <Row label="Changes">{treeChangesText(treeChanges)}</Row>}
+        {work?.title && <Row label="Title">{work.title}</Row>}
         {controlAccess.control && !ch.isSubagent && ch.directoryName && (
           <Row label="Approvals">
             <label className="flex items-center gap-4 cursor-pointer">
@@ -395,6 +463,56 @@ export function AgentDetailPanel({
         )}
         {contextPct !== null && <Row label="Context">{contextPct}% used</Row>}
       </div>
+
+      {usage && (
+        <UsageSection
+          usage={usage}
+          projectTotal={projectUsage && tokenTotal(projectUsage.models)}
+        />
+      )}
+
+      {work && work.todos.length > 0 && (
+        <div className="flex flex-col gap-4" data-testid="agent-todos">
+          <span className="text-text-muted">
+            Todos ({work.todos.filter((t) => t.status === 'completed').length}/{work.todos.length}{' '}
+            done)
+          </span>
+          <ul className="flex flex-col gap-2">
+            {work.todos.map((t, i) => (
+              <li key={i} className="flex gap-6 leading-tight">
+                <span className="shrink-0 w-12" aria-hidden="true">
+                  {t.status === 'completed' ? '✓' : t.status === 'in_progress' ? '▸' : '·'}
+                </span>
+                <span className="sr-only">
+                  {t.status === 'completed'
+                    ? 'Done:'
+                    : t.status === 'in_progress'
+                      ? 'In progress:'
+                      : 'To do:'}
+                </span>
+                <span
+                  className={`min-w-0 break-words ${t.status === 'completed' ? 'text-text-muted line-through' : ''}`}
+                >
+                  {t.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {work && work.files.length > 0 && (
+        <div className="flex flex-col gap-4" data-testid="agent-files">
+          <span className="text-text-muted">Edited lately</span>
+          <ul className="flex flex-col gap-2">
+            {work.files.map((f) => (
+              <li key={f} className="min-w-0 break-all leading-tight" title={f}>
+                {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="flex flex-col gap-4">
         <span className="text-text-muted">This turn</span>

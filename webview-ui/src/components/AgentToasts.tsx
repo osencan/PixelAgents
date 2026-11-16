@@ -16,6 +16,7 @@ const KIND_LABEL: Record<Toast['kind'], { glyph: string; label: string }> = {
   approval: { glyph: '!', label: 'Needs approval:' },
   failed: { glyph: '×', label: 'Failed:' },
   finished: { glyph: '✓', label: 'Done:' },
+  stuck: { glyph: '?', label: 'Quiet:' },
 };
 
 function ToastItem({

@@ -44,7 +44,18 @@ It keeps the 1.x office and continues from v1.6.0 as its own line; it will not b
 **Privacy on the LAN**
 
 - Viewers without the token are read-only and receive tool activity as categories only ("Running a command", "Editing a file"): never file names, commands or prompt text. Full detail is for the tokened page.
-- History is in memory, metadata only.
+- History is metadata only, kept for 24 hours on disk (Settings → Clear activity history).
+
+## What 2.1 adds
+
+Ideas adapted from [The Lobby](https://github.com/Lilykos/orca-the-lobby) (MIT):
+
+- Tokens used today per session, model and project, plus compaction counts, read from local Claude and Codex logs. Counts only, with no cost estimate.
+- "Stuck?" and "Still needs you" for agents that went quiet, with a per-browser threshold, one notice per quiet spell, and an option to announce only turns over a minute.
+- Speech bubbles: the first line of a reply after a turn ends, or "Stuck?".
+- Alt+↓ / Alt+↑ keyboard triage, the agents that need you first.
+- In the panel: uncommitted changes, the conversation title, todos and recently edited files.
+- History that survives restarts.
 
 ## Run it from source
 

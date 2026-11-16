@@ -14,6 +14,7 @@ import {
   startWaitingTimer,
 } from './timerManager.js';
 import type { AgentState } from './types.js';
+import { updateWorkItems } from './workItems.js';
 
 /** Empty set used as safe fallback when no HookProvider is registered. */
 const EMPTY_EXEMPT_TOOLS: ReadonlySet<string> = new Set();
@@ -162,6 +163,8 @@ export function processTranscriptLine(
 
     // -- Context window usage (drives every agent's context gauge) --
     updateContextUsage(agentId, agent, agents, record, hookProvider);
+    // -- Todos, edited files, title (privileged panels only) --
+    updateWorkItems(agentId, agent, agents, record);
 
     // Resilient content extraction: support both record.message.content and record.content
     // Claude Code may change the JSONL structure across versions

@@ -42,6 +42,7 @@ import { useKeyboardViewport } from './hooks/useKeyboardViewport.js';
 import { useLaunchActions } from './hooks/useLaunchActions.js';
 import { popClass, usePresence } from './hooks/usePresence.js';
 import { useTerminalDrawer } from './hooks/useTerminalDrawer.js';
+import { useTriageKeys } from './hooks/useTriageKeys.js';
 import { MobileMenu, MobileMenuButton } from './mobile/MobileMenu.js';
 import { MobileShell } from './mobile/MobileShell.js';
 import { useMobileMenu } from './mobile/useMobileMenu.js';
@@ -402,6 +403,7 @@ function App() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [editorTickForKeyboard, setEditorTickForKeyboard] = useState(0);
+  useTriageKeys(getOfficeState);
   useEditorKeyboard(
     // the Characters view has its own undo and shortcuts
     editor.isEditMode && !isCharactersOpen,

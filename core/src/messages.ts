@@ -37,6 +37,9 @@ export type ServerMessage =
   | SubagentToolPermission
   | AgentTeamInfo
   | AgentContextUsage
+  | UsageToday
+  | AgentWorkItems
+  | WorkingTreeChanges
   | LayoutLoaded
   | FurnitureAssetsLoaded
   | CharacterProfilesLoaded
@@ -75,6 +78,7 @@ export type ClientMessage =
   | SaveAgentSeats
   | SaveLayout
   | SetProjectLabel
+  | ClearHistory
   | UnlockControl
   | LockControl
   | SetControlPin
@@ -358,6 +362,62 @@ export interface AgentContextUsage {
   id: number;
   contextTokens: number;
   maxContextTokens: number;
+}
+
+export interface UsageToday {
+  type: 'usageToday';
+  day: string;
+  agents: AgentUsageToday[];
+  projects: ProjectUsageToday[];
+}
+
+export interface AgentUsageToday {
+  id: number;
+  models: ModelTokenCounts[];
+  compactions: number;
+  contextWindow?: number;
+  project?: string;
+}
+
+export interface ModelTokenCounts {
+  model: string;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+export interface ProjectUsageToday {
+  name: string;
+  models: ModelTokenCounts[];
+}
+
+export interface AgentWorkItems {
+  type: 'agentWorkItems';
+  id: number;
+  todos: WorkTodo[];
+  files: string[];
+  title?: string;
+  reply?: string;
+}
+
+export interface WorkTodo {
+  text: string;
+  status: WorkTodoStatus;
+}
+
+export type WorkTodoStatus = 'pending' | 'in_progress' | 'completed';
+
+export interface WorkingTreeChanges {
+  type: 'workingTreeChanges';
+  agents: AgentTreeChanges[];
+}
+
+export interface AgentTreeChanges {
+  id: number;
+  files: number;
+  insertions: number;
+  deletions: number;
 }
 
 export interface LayoutLoaded {
@@ -712,6 +772,10 @@ export interface SetProjectLabel {
   label: string;
 }
 
+export interface ClearHistory {
+  type: 'clearHistory';
+}
+
 export interface UnlockControl {
   type: 'unlockControl';
   pin?: string;
@@ -735,10 +799,10 @@ export interface SetApprovalOptIn {
 export interface ApprovePermission {
   type: 'approvePermission';
   requestId: string;
-  behavior: AnonymousSchema_393;
+  behavior: AnonymousSchema_424;
 }
 
-export type AnonymousSchema_393 = 'allow' | 'deny';
+export type AnonymousSchema_424 = 'allow' | 'deny';
 
 export interface SaveCharacterProfiles {
   type: 'saveCharacterProfiles';

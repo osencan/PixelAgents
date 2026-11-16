@@ -112,6 +112,10 @@ components:
         - $ref: '#/components/schemas/AgentTeamInfo'
         # Context window
         - $ref: '#/components/schemas/AgentContextUsage'
+        # Tokens used today (privileged sockets only)
+        - $ref: '#/components/schemas/UsageToday'
+        - $ref: '#/components/schemas/AgentWorkItems'
+        - $ref: '#/components/schemas/WorkingTreeChanges'
         # Layout
         - $ref: '#/components/schemas/LayoutLoaded'
         # Assets
@@ -158,6 +162,7 @@ components:
         - $ref: '#/components/schemas/SaveAgentSeats'
         - $ref: '#/components/schemas/SaveLayout'
         - $ref: '#/components/schemas/SetProjectLabel'
+        - $ref: '#/components/schemas/ClearHistory'
         - $ref: '#/components/schemas/UnlockControl'
         - $ref: '#/components/schemas/LockControl'
         - $ref: '#/components/schemas/SetControlPin'
@@ -521,10 +526,156 @@ components:
         at:
           type: integer
 
+    ModelTokenCounts:
+      description: Tokens one model used today (counts only, no cost).
+      type: object
+      additionalProperties: false
+      required: [model, input, output, cacheRead, cacheWrite]
+      properties:
+        model:
+          type: string
+        input:
+          type: integer
+          description: Uncached input tokens.
+        output:
+          type: integer
+        cacheRead:
+          type: integer
+        cacheWrite:
+          type: integer
+
+    AgentUsageToday:
+      type: object
+      additionalProperties: false
+      required: [id, models, compactions]
+      properties:
+        id:
+          type: integer
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelTokenCounts'
+        compactions:
+          type: integer
+          description: Compactions seen in the session's log (whole session, not just today).
+        contextWindow:
+          type: integer
+          description: Context window the log states (Codex). Absent when the log names none.
+        project:
+          type: string
+          description: Name of the agent's entry in `projects`, when it has one.
+
+    ProjectUsageToday:
+      type: object
+      additionalProperties: false
+      required: [name, models]
+      properties:
+        name:
+          type: string
+          description: Project display name.
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelTokenCounts'
+
+    UsageToday:
+      description: >-
+        Tokens used today (local day), per agent in the office and per project,
+        read from local Claude transcripts and Codex rollouts. Account data:
+        sent to privileged (tokened) sockets only.
+      type: object
+      additionalProperties: false
+      required: [type, day, agents, projects]
+      properties:
+        type:
+          const: usageToday
+        day:
+          type: string
+          description: Local calendar day, YYYY-MM-DD.
+        agents:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentUsageToday'
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectUsageToday'
+
+    WorkTodo:
+      type: object
+      additionalProperties: false
+      required: [text, status]
+      properties:
+        text:
+          type: string
+        status:
+          $ref: '#/components/schemas/WorkTodoStatus'
+
+    WorkTodoStatus:
+      type: string
+      enum: [pending, in_progress, completed]
+
+    AgentWorkItems:
+      description: >-
+        What an agent is working through, from its transcript: its latest todo
+        list, the files it edited last (newest first, relative to the project
+        when inside it) and the conversation's generated title. Tokened
+        sockets only.
+      type: object
+      additionalProperties: false
+      required: [type, id, todos, files]
+      properties:
+        type:
+          const: agentWorkItems
+        id:
+          type: integer
+        todos:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkTodo'
+        files:
+          type: array
+          items:
+            type: string
+        title:
+          type: string
+        reply:
+          type: string
+          description: First line of the agent's latest reply text (main chain), clipped.
+
+    AgentTreeChanges:
+      type: object
+      additionalProperties: false
+      required: [id, files, insertions, deletions]
+      properties:
+        id:
+          type: integer
+        files:
+          type: integer
+        insertions:
+          type: integer
+        deletions:
+          type: integer
+
+    WorkingTreeChanges:
+      description: >-
+        Uncommitted changes (git diff --shortstat HEAD, tracked files) in each
+        office agent's project. Tokened sockets only.
+      type: object
+      additionalProperties: false
+      required: [type, agents]
+      properties:
+        type:
+          const: workingTreeChanges
+        agents:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentTreeChanges'
+
     AgentHistory:
       description: >-
-        An agent's recent history (bounded, in memory, metadata only), sent on
-        reconnect. Live changes arrive as agentLifecycle / agentToolFailed.
+        An agent's recent history (bounded, metadata only; the standalone server
+        keeps the last 24 hours on disk), sent on reconnect. Live changes arrive as agentLifecycle / agentToolFailed.
       type: object
       additionalProperties: false
       required: [type, id, entries]
@@ -1680,6 +1831,17 @@ components:
           type: integer
         label:
           type: string
+
+    ClearHistory:
+      description: >-
+        Forget every agent's activity history, in memory and on disk
+        (~/.pixel-agents/history.json). Tokened clients only.
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type:
+          const: clearHistory
 
     SaveCharacterProfiles:
       description: |

@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Directory, HooksConsentRequest } from '../../../core/src/messages.js';
-import type { AgentLifecycleState } from '../../../core/src/messages.js';
+import type {
+  AgentLifecycleState,
+  AgentWorkItems,
+  UsageToday,
+  WorkingTreeChanges,
+} from '../../../core/src/messages.js';
 import { handleCastMessage } from '../characters/castMessages.js';
 import { castStore } from '../characters/castStore.js';
 import { startOfficeSync } from '../characters/officeSprites.js';
 import { cardOrderOf } from '../components/cardBar.js';
+import { STUCK_CHECK_MS } from '../constants.js';
 import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
 import type { AgentHistoryEntry } from '../office/agentHistory.js';
 import { appendAgentHistory, clearAgentHistory, setAgentHistory } from '../office/agentHistory.js';
@@ -42,15 +48,27 @@ import {
   clearPendingPermission,
   setPendingPermission,
 } from '../office/permissionRequests.js';
+import { clearSpeech, noteTurnFinished } from '../office/speechBubbles.js';
 import { setCarpetSprites } from '../office/sprites/carpetTiles.js';
 import { setPetTemplates } from '../office/sprites/petSpriteData.js';
+import {
+  forgetAgent,
+  noteAgentLifecycle,
+  noteAgentNews,
+  quietState,
+  quietText,
+  shouldNotifyQuiet,
+  turnWorthAnnouncing,
+} from '../office/stuckAgents.js';
 import {
   extractToolName,
   isSubagentToolName,
   setProviderCapabilities,
 } from '../office/toolUtils.js';
 import type { OfficeLayout, ToolActivity } from '../office/types.js';
+import { setUsageToday } from '../office/usageToday.js';
 import { setWallSprites } from '../office/wallTiles.js';
+import { clearWorkItems, setTreeChanges, setWorkItems } from '../office/workItems.js';
 import { isBrowserRuntime, isE2E } from '../runtime.js';
 import { transport } from '../transport/index.js';
 import { onReconnect } from '../transport/onReconnect.js';
@@ -64,6 +82,15 @@ import { handleUsageMessage } from '../usage/usageStore.js';
  * Standalone is exempt: that adapter has no terminals at all, so every agent
  * would qualify and the cue would distinguish nothing.
  */
+/** Per-agent messages that say nothing about whether it is still working. */
+const QUIET_NEUTRAL_TYPES: ReadonlySet<string> = new Set([
+  'agentHistory',
+  'agentClosed',
+  'agentSelected',
+  'agentKeyChanged',
+  'agentDirectoryChanged',
+]);
+
 const isHeadlessAgent = (isExternal: boolean | undefined): boolean =>
   isExternal === true && !isBrowserRuntime;
 
@@ -314,6 +341,9 @@ export function useExtensionMessages(
       setSelectedAgent((prev) => (prev === id ? null : prev));
       clearAgentKey(id);
       clearAgentLifecycle(id);
+      forgetAgent(id);
+      clearWorkItems(id);
+      clearSpeech(id);
       clearAgentHistory(id);
       clearCheckResult(id);
       clearAgentPermissions(id);
@@ -361,6 +391,15 @@ export function useExtensionMessages(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handler = (msg: any) => {
       const os = getOfficeState();
+      // Anything live about an agent means it isn't quiet (stuckAgents.ts).
+      if (
+        typeof msg.id === 'number' &&
+        msg.replayed !== true &&
+        /^(agent|subagent)/.test(String(msg.type)) &&
+        !QUIET_NEUTRAL_TYPES.has(String(msg.type))
+      ) {
+        noteAgentNews(msg.id);
+      }
       // CI / e2e diagnostic: record every received transport message on the
       // window-side log. The fixture reads window.__pixelAgentsTestHooks.
       // messageLog and attaches as JSON so CI failures can see the exact
@@ -719,6 +758,7 @@ export function useExtensionMessages(
           since: msg.since as number,
         };
         const prev = getAgentLifecycle(id);
+        noteAgentLifecycle(id, prev?.lifecycle, next.lifecycle, next.since);
         setAgentLifecycle(id, next);
         os.applyLifecycle(id, next.lifecycle);
         // An answered approval request: its notice has done its job.
@@ -735,7 +775,10 @@ export function useExtensionMessages(
             at: next.since,
             project,
           });
-          const kind = lifecycleNotice(prev, next);
+          let kind = lifecycleNotice(prev, next);
+          if (kind === 'finished') noteTurnFinished(id, next.since);
+          else if (next.lifecycle !== 'idle' && next.lifecycle !== 'waiting_input') clearSpeech(id);
+          if (kind === 'finished' && !turnWorthAnnouncing(id, next.since)) kind = null;
           // A request for approval needs action, so it is announced even for
           // an agent this viewer hid or filtered out; the rest stay quiet.
           const hiddenHere = os.isHidden(id);
@@ -760,6 +803,12 @@ export function useExtensionMessages(
           at: msg.at as number,
           project: os.characters.get(id)?.directoryName,
         });
+      } else if (msg.type === 'agentWorkItems') {
+        setWorkItems(msg as unknown as AgentWorkItems);
+      } else if (msg.type === 'workingTreeChanges') {
+        setTreeChanges(msg as unknown as WorkingTreeChanges);
+      } else if (msg.type === 'usageToday') {
+        setUsageToday(msg as unknown as UsageToday);
       } else if (msg.type === 'agentHistory') {
         setAgentHistory(msg.id as number, msg.entries as AgentHistoryEntry[]);
       } else if (msg.type === 'agentToolFailed') {
@@ -1078,6 +1127,24 @@ export function useExtensionMessages(
       unsubscribeReconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getOfficeState]);
+
+  // Agents that went quiet: one notice per spell, by this viewer's threshold.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const os = getOfficeState();
+      const now = Date.now();
+      for (const [id, ch] of os.characters) {
+        if (ch.isSubagent) continue;
+        const quiet = quietState(id, getAgentLifecycle(id), now);
+        if (!quiet || !shouldNotifyQuiet(id, quiet)) continue;
+        // Waiting on you is announced even for hidden agents, like approvals.
+        if (os.isHidden(id) && quiet.kind !== 'needs_you') continue;
+        const name = ch.directoryName ?? `Agent ${id}`;
+        pushToast({ agentId: id, kind: 'stuck', text: `${name}: ${quietText(quiet, now)}` });
+      }
+    }, STUCK_CHECK_MS);
+    return () => clearInterval(timer);
   }, [getOfficeState]);
 
   // Idle sub-agent characters between their turns: when every tracked tool row

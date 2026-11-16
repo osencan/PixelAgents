@@ -8,6 +8,7 @@
  * Each connecting WebSocket client receives the full state on webviewReady.
  */
 
+import * as os from 'os';
 import * as path from 'path';
 
 import { startAgentKeyTracker } from './agentKeyTracker.js';
@@ -31,8 +32,10 @@ import {
   readConfig,
 } from './configPersistence.js';
 import {
+  HISTORY_FILE_NAME,
   MAX_PORT,
   MIN_PORT,
+  PIXEL_AGENTS_DIR,
   PTY_HOST_SCRIPT,
   TERMINAL_DISABLED_BY_FLAG_REASON,
   WILDCARD_HOSTNAMES,
@@ -57,6 +60,8 @@ import { PtySessionManager } from './terminal/ptySessionManager.js';
 import { RemotePtySessions, startPtyHostProcess } from './terminal/remotePtySessions.js';
 import { reattachTerminalAgents } from './terminal/standaloneAgentLauncher.js';
 import type { TerminalSessions } from './terminal/terminalSessions.js';
+import { startUsageTotals } from './usageTotals.js';
+import { startWorkingTree } from './workingTree.js';
 import { isLoopbackHost, normalizeHostname } from './wsAuth.js';
 
 // ── Argument parsing ──────────────────────────────────────────
@@ -518,10 +523,14 @@ async function main(): Promise<void> {
 
     const codexSessions = startCodexSessions(store);
     const claudeDirectoryLabels = startClaudeDirectoryLabels(store);
-    const agentLifecycle = startAgentLifecycle(store);
+    const agentLifecycle = startAgentLifecycle(store, {
+      historyFile: path.join(os.homedir(), PIXEL_AGENTS_DIR, HISTORY_FILE_NAME),
+    });
+    const workingTree = startWorkingTree(store);
     const agentKeyTracker = startAgentKeyTracker(store);
     const approvalOptIns = startApprovalOptInBroadcaster(store);
     const permissionBroker = startPermissionBroker(store);
+    const usageTotals = startUsageTotals(store);
 
     // ── Graceful shutdown ──
     let shuttingDown = false;
@@ -535,6 +544,8 @@ async function main(): Promise<void> {
       agentKeyTracker.dispose();
       approvalOptIns.dispose();
       permissionBroker.dispose();
+      usageTotals.dispose();
+      workingTree.dispose();
       // In process: kill child terminals and wait for them (each exit closes
       // its agent): exiting now would cancel the SIGKILL escalation and leave
       // a child that ignores SIGHUP orphaned on a dead server. With the PTY

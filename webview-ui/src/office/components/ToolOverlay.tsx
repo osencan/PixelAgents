@@ -39,10 +39,12 @@ import type { OfficeState } from '../engine/officeState.js';
 import { linkLinesEnabled } from '../linkLines.js';
 import { overlayProjection } from '../projection.js';
 import { projectAccent } from '../projectPrefs.js';
+import { speechFor } from '../speechBubbles.js';
 import { getCachedSprite } from '../sprites/spriteCache.js';
 import { BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE } from '../sprites/spriteData.js';
 import type { ToolActivity } from '../types.js';
 import { CharacterState } from '../types.js';
+import { getWorkItems } from '../workItems.js';
 
 interface ToolOverlayProps {
   officeState: OfficeState;
@@ -88,11 +90,12 @@ export function ToolOverlay({
   panRef,
   alwaysShowOverlay,
 }: ToolOverlayProps) {
-  const [, setTick] = useState(0);
+  // Every frame: the time drives timed bubbles (speechBubbles.ts).
+  const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
     let rafId = 0;
     const tick = () => {
-      setTick((n) => n + 1);
+      setNowMs(Date.now());
       rafId = requestAnimationFrame(tick);
     };
     rafId = requestAnimationFrame(tick);
@@ -181,7 +184,32 @@ export function ToolOverlay({
         let bubbleNode = null;
         // Screen y of the bubble's top edge, when one shows: the label stacks above it.
         let bubbleTop: number | null = null;
-        if (ch.bubbleType && !(ch.bubbleType === 'waiting' && ch.waitingAwaitingInput)) {
+        // What it says, after approval: "Stuck?", or its reply's first line.
+        const speech =
+          needsApproval || isSub
+            ? null
+            : speechFor(id, getAgentLifecycle(id), getWorkItems(id)?.reply, nowMs);
+        if (speech) {
+          const speechSittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0;
+          bubbleTop =
+            project.toScreenY(ch.y + speechSittingOff - BUBBLE_VERTICAL_OFFSET_PX) -
+            APPROVAL_BEACON_SIZE_PX;
+          bubbleNode = (
+            <div
+              className={`absolute -translate-x-1/2 pointer-events-none pixel-panel px-6 text-sm whitespace-nowrap speech-bubble ${
+                speech.kind === 'stuck' ? 'speech-stuck' : ''
+              }`}
+              style={{
+                left: project.toScreenX(ch.x),
+                top: bubbleTop,
+                zIndex: OVERLAY_BUBBLE_Z_INDEX,
+              }}
+              data-testid={speech.kind === 'stuck' ? 'speech-stuck' : 'speech-reply'}
+            >
+              {speech.text}
+            </div>
+          );
+        } else if (ch.bubbleType && !(ch.bubbleType === 'waiting' && ch.waitingAwaitingInput)) {
           const cachedBubble = getCachedSprite(
             ch.bubbleType === 'permission' ? BUBBLE_PERMISSION_SPRITE : BUBBLE_WAITING_SPRITE,
             zoom,
