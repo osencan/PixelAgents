@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { officeRadio } from '../music/musicEngine.js';
 import { useOfficeRadio } from '../music/useOfficeRadio.js';
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js';
+import { getControlAccess, useControlVersion } from '../office/controlAccess.js';
 import { isBrowserRuntime } from '../runtime.js';
 import { transport } from '../transport/index.js';
 import { useUsageBridge } from '../usage/useUsageBridge.js';
@@ -91,6 +92,9 @@ export function SettingsModal({
   // has no usage bridge.
   const [confirmUsageBars, setConfirmUsageBars] = useState(false);
   const [confirmClearHistory, setConfirmClearHistory] = useState(false);
+  useControlVersion();
+  // Host configuration needs Agent controls (the server refuses it otherwise).
+  const hostConfig = getControlAccess().control;
   const { status: usageBridge, pending: usagePending, setEnabled: setUsageBars } = useUsageBridge();
 
   return (
@@ -228,6 +232,12 @@ export function SettingsModal({
           checked={showSubtaskAgents}
           onChange={onToggleShowSubtaskAgents}
         />
+        {tokened && !hostConfig && (
+          <span className="px-10 text-sm text-text-muted leading-tight">
+            Hooks, Usage Bars and asset folders change this computer's setup: unlock Agent controls
+            below to change them from this device.
+          </span>
+        )}
         <Checkbox
           label="Instant Detection (Hooks)"
           checked={hooksInstalled}

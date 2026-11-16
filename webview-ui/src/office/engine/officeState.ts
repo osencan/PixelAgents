@@ -221,8 +221,16 @@ export class OfficeState {
       seat.assigned = false;
     }
 
-    // First pass: try to keep characters at their existing seats
+    // First pass: try to keep characters at their existing seats. A seat in a
+    // Rest/Waiting/Planning room is held back: its sitter moves to a free work
+    // desk if there is one (second pass), and keeps it otherwise.
+    const heldBack = new Map<number, string>();
     for (const ch of this.characters.values()) {
+      if (ch.seatId && this.seats.has(ch.seatId) && !this.isWorkSeat(ch.seatId)) {
+        heldBack.set(ch.id, ch.seatId);
+        ch.seatId = null;
+        continue;
+      }
       if (ch.seatId && this.seats.has(ch.seatId)) {
         const seat = this.seats.get(ch.seatId)!;
         if (!seat.assigned) {
@@ -244,7 +252,10 @@ export class OfficeState {
     // Second pass: assign remaining characters to free seats
     for (const ch of this.characters.values()) {
       if (ch.seatId || !takesSeat(ch)) continue;
-      const seatId = this.findFreeSeat(ch.directoryName);
+      const held = heldBack.get(ch.id);
+      const keepHeld =
+        held !== undefined && !this.seats.get(held)!.assigned && !this.hasFreeWorkSeat();
+      const seatId = keepHeld ? held : this.findFreeSeat(ch.directoryName);
       if (seatId) {
         this.seats.get(seatId)!.assigned = true;
         ch.seatId = seatId;
@@ -381,13 +392,17 @@ export class OfficeState {
    * unzoned seats from a layout without `areaTiles`, which is every seat).
    */
   private findFreeSeat(directoryName?: string): string | null {
-    const freeSeats: string[] = [];
+    const allFree: string[] = [];
     for (const [uid, seat] of this.seats) {
-      if (!seat.assigned) freeSeats.push(uid);
+      if (!seat.assigned) allFree.push(uid);
     }
-    if (freeSeats.length === 0) return null;
+    if (allFree.length === 0) return null;
+    // Desks in Rest, Waiting or Planning rooms are a last resort: a working
+    // agent sits there only when every work desk is taken.
+    const freeSeats = allFree.filter((uid) => this.isWorkSeat(uid));
+    if (freeSeats.length === 0) return this.pickFromSeats(allFree);
 
-    // Stage 0 — the desk this project last used, when it is free.
+    // Stage 0 — the desk this project last used, when it is free (and a work desk).
     const remembered = rememberedSeat(directoryName);
     if (remembered && freeSeats.includes(remembered)) return remembered;
 
@@ -409,8 +424,24 @@ export class OfficeState {
     const pick2 = this.pickFromSeats(unzoned);
     if (pick2) return pick2;
 
-    // Stage 3 — any free seat.
+    // Stage 3 — any free work seat, in rooms no Directory is mapped to too.
     return this.pickFromSeats(freeSeats);
+  }
+
+  /** A seat a working agent belongs at: unzoned, or in a room whose purpose is
+   *  Work. Seats in Rest, Waiting and Planning rooms are not. */
+  isWorkSeat(uid: string): boolean {
+    const label = this.seatZone(uid);
+    if (label === null) return true;
+    return !(['rest', 'waiting', 'planning'] as const).some((p) =>
+      areaLabelsFor(this.layout, p).has(label),
+    );
+  }
+
+  /** Whether any free seat is a work seat. */
+  private hasFreeWorkSeat(): boolean {
+    for (const [uid, seat] of this.seats) if (!seat.assigned && this.isWorkSeat(uid)) return true;
+    return false;
   }
 
   /** The way a lead's sub-agents face: its seat's way (how it sits to work),
@@ -499,14 +530,19 @@ export class OfficeState {
     const anchor = nearAgentId !== undefined ? this.characters.get(nearAgentId) : undefined;
     const anchorAt = anchorTile(anchor, this.seats);
     let seatId: string | null = null;
+    // A remembered or anchored seat in a Rest/Waiting/Planning room only
+    // stands while no work desk is free (it may date from a full office).
+    const fits = (uid: string | null) =>
+      uid !== null && (this.isWorkSeat(uid) || !this.hasFreeWorkSeat());
     if (preferredSeatId && this.seats.has(preferredSeatId)) {
       const seat = this.seats.get(preferredSeatId)!;
-      if (!seat.assigned) {
+      if (!seat.assigned && fits(preferredSeatId)) {
         seatId = preferredSeatId;
       }
     }
     if (!seatId && anchorAt) {
-      seatId = closestFreeSeat(this.seats, anchorAt.col, anchorAt.row);
+      const near = closestFreeSeat(this.seats, anchorAt.col, anchorAt.row);
+      if (fits(near)) seatId = near;
     }
     if (!seatId) {
       seatId = this.findFreeSeat(directoryName);

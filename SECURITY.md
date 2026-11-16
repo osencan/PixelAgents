@@ -23,5 +23,6 @@ Security issues relevant to this project include:
 - Arbitrary file read/write beyond intended paths
 - Cross-site scripting (XSS) in the webview
 - Sensitive data exposure (e.g., leaking terminal output or session content)
-- Agent controls: approving a permission request, launching an agent or reaching a terminal without the token plus control (this machine or a PIN unlock)
+- Agent controls: approving a permission request, launching an agent, reaching a terminal, or changing host configuration (Claude hooks, the status line, asset folders) without the token plus control (this machine or a PIN unlock)
+- Read-only viewers receiving usage, titles, todos, edited file names or reply text
 - Read-only viewers seeing more than activity categories (file names, commands, prompt text)

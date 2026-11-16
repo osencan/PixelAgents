@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.1.1
+
+- **The PIN now guards this computer's setup too:** installing or removing Claude hooks or Usage Bars (both write `~/.claude/settings.json`) and adding or removing asset folders need Agent controls, like approvals. A device with only the token can still arrange the office. Its switches for these snap back, and Settings says why. This machine and VS Code are unchanged.
+- **Fix:** a tablet could show "No control PIN yet" although a PIN was set. The control state was sent before the page was listening; it is now sent again when the page is ready.
+- **Fix:** a working agent could be seated in the rest room while rooms not linked to any Directory had free desks. Desks in Rest, Waiting and Planning rooms are now a last resort, and a layout change moves anyone working there to a free work desk.
+- `/api/health` returns uptime and process id only to this machine. `control.json` (the PIN's hash) is now owner-only.
+- README: what the token alone allows, what needs the PIN, and `--rotate-token` for a leaked URL.
+
 ## v2.1.0
 
 Ideas adapted from [The Lobby](https://github.com/Lilykos/orca-the-lobby) (MIT), an Orca plugin with its own pixel office.

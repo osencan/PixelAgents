@@ -145,6 +145,19 @@ export const CONTROL_MESSAGE_TYPES: ReadonlySet<string> = new Set([
   'resumeConversation',
   'closeAgent',
 ]);
+/**
+ * Host configuration outside the office: Claude's settings.json (hooks, the
+ * status line) and folders the server reads assets from. A tokened device
+ * without the control PIN can still arrange the office, but not change these;
+ * this machine (local tokened sockets) and VS Code are unaffected.
+ */
+export const HOST_CONFIG_MESSAGE_TYPES: ReadonlySet<string> = new Set([
+  'setHooksEnabled',
+  'hooksConsentResponse',
+  'setUsageBridgeEnabled',
+  'addExternalAssetDirectory',
+  'removeExternalAssetDirectory',
+]);
 const KEY_BYPASS_PERMISSIONS = 'pixel-agents.bypassPermissions';
 const KEY_SHOW_HOST_DIRECTORIES = 'pixel-agents.showHostDirectories';
 
@@ -245,13 +258,19 @@ export function handleClientMessage(
 
   // Controlling agents needs more than the token (controlPolicy.ts); refused
   // here for the same privileged-by-default reason as above.
-  if (CONTROL_MESSAGE_TYPES.has(String(msg.type)) && !ctx.control) {
+  if (
+    (CONTROL_MESSAGE_TYPES.has(String(msg.type)) ||
+      HOST_CONFIG_MESSAGE_TYPES.has(String(msg.type))) &&
+    !ctx.control
+  ) {
     auditControl({
       action: String(msg.type),
       client: ctx.local ? 'local' : 'remote',
       outcome: 'refused',
     });
     send({ type: 'controlRefused', action: String(msg.type) });
+    // Switches flipped optimistically snap back to the truth.
+    answerWithTruth(msg, send, ctx);
     return;
   }
 
@@ -858,7 +877,9 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
             installed,
             hooksEnabled: getHooksEnabled(provider.id),
             consentAnswered: getHooksConsent(provider.id) !== 'unanswered',
-            privileged: ctx.privileged === true,
+            // Asked only where the answer could be honored: installing hooks is
+            // host configuration (HOST_CONFIG_MESSAGE_TYPES), so it needs control.
+            privileged: ctx.privileged === true && ctx.control === true,
           },
           provider,
         );
@@ -1019,7 +1040,17 @@ function refuseReadOnly(
       `[Pixel Agents] Ignoring ${type} from a read-only client. Changes need the tokened URL the CLI printed (at localhost or an --allowed-host name).`,
     );
   }
+  answerWithTruth(msg, send, ctx);
+}
+
+/** After a refused change, re-send the real state so an optimistic UI snaps back. */
+function answerWithTruth(
+  msg: Record<string, unknown>,
+  send: WsSend,
+  ctx: ClientMessageContext,
+): void {
   switch (msg.type) {
+    case 'hooksConsentResponse':
     case 'setHooksEnabled': {
       const provider = hookProviderById(msg.providerId);
       if (!provider) return;
@@ -1037,6 +1068,9 @@ function refuseReadOnly(
     case 'setBypassPermissions':
     case 'setShowHostDirectories':
       send(settingsSnapshot(ctx.store.getAdapter()));
+      return;
+    case 'setUsageBridgeEnabled':
+      for (const m of usageSnapshotMessages()) send({ ...m });
       return;
     case 'addExternalAssetDirectory':
     case 'removeExternalAssetDirectory':
