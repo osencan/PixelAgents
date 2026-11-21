@@ -84,6 +84,8 @@ export const EditTool = {
   EYEDROPPER: 'eyedropper',
   ERASE: 'erase',
   PETS: 'pets',
+  /** Layout → Offices: pick a ready-made office (no canvas action). */
+  OFFICES: 'offices',
   CARPET_PAINT: 'carpet_paint',
   CARPET_PICK: 'carpet_pick',
   AREA_PAINT: 'area_paint',

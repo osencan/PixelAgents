@@ -346,3 +346,41 @@ describe('configPersistence: areas', () => {
     });
   });
 });
+
+describe('configPersistence: Watch All Sessions default', () => {
+  let tempHome: string;
+  let originalHome: string | undefined;
+
+  beforeEach(() => {
+    tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pxl-config-test-'));
+    originalHome = process.env.HOME;
+    process.env.HOME = tempHome;
+  });
+
+  afterEach(() => {
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
+    }
+    fs.rmSync(tempHome, { recursive: true, force: true });
+  });
+
+  it('is on for the browser app and off for VS Code on a fresh install', () => {
+    const cfg = readConfig();
+    expect(cfg.standalone.watchAllSessions).toBe(true);
+    expect(cfg.vscode.watchAllSessions).toBe(false);
+  });
+
+  it('fills a missing standalone value with on, and keeps an explicit off', () => {
+    const dir = path.join(tempHome, '.pixel-agents');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ standalone: {}, vscode: {} }));
+    expect(readConfig().standalone.watchAllSessions).toBe(true);
+    fs.writeFileSync(
+      path.join(dir, 'config.json'),
+      JSON.stringify({ standalone: { watchAllSessions: false } }),
+    );
+    expect(readConfig().standalone.watchAllSessions).toBe(false);
+  });
+});

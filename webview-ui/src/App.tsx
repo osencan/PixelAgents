@@ -744,6 +744,8 @@ function App() {
                   activePetTypes={officeState.getActivePetTypes()}
                   petCount={getPetCount()}
                   onPetToggle={editor.handlePetToggle}
+                  layout={officeState.getLayout()}
+                  onPickOffice={editor.handlePickOffice}
                   carpetVariant={editor.carpetVariant}
                   carpetColor={editor.carpetColor}
                   carpetAccentColor={editor.carpetAccentColor}

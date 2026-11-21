@@ -33,7 +33,8 @@ describe('FileStateAdapter', () => {
   it('returns defaults when config file does not exist', () => {
     const adapter = new FileStateAdapter({ namespace: 'standalone' });
     expect(adapter.getSetting('pixel-agents.soundEnabled', false)).toBe(true);
-    expect(adapter.getSetting('pixel-agents.watchAllSessions', true)).toBe(false);
+    // The browser app watches every session by default (configPersistence).
+    expect(adapter.getSetting('pixel-agents.watchAllSessions', false)).toBe(true);
     expect(adapter.getSetting('pixel-agents.lastSeenVersion', 'x')).toBe('');
   });
 

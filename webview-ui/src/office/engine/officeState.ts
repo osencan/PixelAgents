@@ -271,11 +271,14 @@ export class OfficeState {
     // Relocate any characters that ended up outside bounds or on non-walkable tiles
     for (const ch of this.characters.values()) {
       if (ch.seatId) continue; // seated characters are fine
+      // Not walkable covers a whole new floor plan (Layout → Offices): a wall
+      // or a desk can now stand where the character was.
       if (
         ch.tileCol < 0 ||
         ch.tileCol >= layout.cols ||
         ch.tileRow < 0 ||
-        ch.tileRow >= layout.rows
+        ch.tileRow >= layout.rows ||
+        !isWalkable(ch.tileCol, ch.tileRow, this.tileMap, this.blockedTiles)
       ) {
         this.relocateCharacterToWalkable(ch);
       }

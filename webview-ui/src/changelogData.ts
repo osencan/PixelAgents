@@ -29,6 +29,27 @@ export const SPONSOR_URL = 'https://github.com/sponsors/osencan';
 
 export const changelogEntries: ChangelogEntry[] = [
   {
+    version: '2.2',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'Layout → Offices: start from a ready-made office (Four Rooms, Two Rooms, Blue Office, Severance)',
+          'Four Rooms is the default office for new installs',
+          'Watch All Sessions is on by default in the browser app, so every project shows up',
+        ],
+      },
+    ],
+    contributors: [
+      {
+        name: 'Pablo De Lucca',
+        url: 'https://github.com/pixel-agents-hq/index',
+        description:
+          'whose layout index (MIT) the Two Rooms, Blue Office and Severance offices come from',
+      },
+    ],
+  },
+  {
     version: '2.1',
     sections: [
       {

@@ -542,7 +542,7 @@ The Characters view (bottom toolbar button; phone: next to Settings) designs the
 
 ## Layout Editor
 
-Toggle via "Layout" button. Tools: SELECT (default), Floor paint, Wall paint, Erase (set tiles to VOID), Furniture place, Furniture Copy (`FURNITURE_PICK`: type + colour off a placed item), colour Copy (`COLOR_PICK`: colour only), Eyedropper (floor/wall). `handleEditorTileAction` is a per-tool switch; the layout maths lives in pure `editorActions.ts` functions. Clicks on placed items (select, drag) never reach it — the canvas resolves them.
+Toggle via "Layout" button. **Offices** (`EditTool.OFFICES`, `office/editor/OfficePicker.tsx`) lists the ready-made offices in `office/layout/offices.ts` (`OFFICES`, JSON in `office/layout/offices/`): picking one is one undoable edit (`layoutForOffice` keeps pets, `roomPolicy` and `layoutRevision`), and `officeIdOf` marks the one the layout still is. Four Rooms doubles as the bundled default (`public/assets/default-layout-1.json`, pinned equal by `offices.test.ts`); **never bump the default's revision to change it** — a higher revision replaces every existing install's saved layout (`loadLayout`). Tools: SELECT (default), Floor paint, Wall paint, Erase (set tiles to VOID), Furniture place, Furniture Copy (`FURNITURE_PICK`: type + colour off a placed item), colour Copy (`COLOR_PICK`: colour only), Eyedropper (floor/wall). `handleEditorTileAction` is a per-tool switch; the layout maths lives in pure `editorActions.ts` functions. Clicks on placed items (select, drag) never reach it — the canvas resolves them.
 
 **Floor**: 7 patterns from `floors.png` (grayscale 16×16), colorizable via HSBC sliders (Photoshop Colorize). Color baked per-tile on paint. Eyedropper picks pattern+color.
 

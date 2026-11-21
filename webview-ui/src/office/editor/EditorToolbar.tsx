@@ -24,6 +24,7 @@ import {
   getActiveCategories,
   getCatalogByCategory,
 } from '../layout/furnitureCatalog.js';
+import type { OfficePreset } from '../layout/offices.js';
 import { AREA_PURPOSE_LABELS, AREA_PURPOSES, areaPurpose } from '../roomPolicy.js';
 import {
   getCarpetJunctionSprite,
@@ -36,12 +37,14 @@ import type {
   AreaDefinition,
   AreaPurpose,
   CarpetTile,
+  OfficeLayout,
   RoomPolicy,
   SpriteData,
   TileType as TileTypeVal,
 } from '../types.js';
 import { EditTool } from '../types.js';
 import { getWallSetCount, getWallSetPreviewSprite } from '../wallTiles.js';
+import { OfficePicker } from './OfficePicker.js';
 
 /** Synthetic category id used to show the carpet sub-panel inside the Furniture tab. */
 const CARPET_CATEGORY_ID = '__carpet__' as const;
@@ -73,6 +76,9 @@ interface EditorToolbarProps {
   activePetTypes: number[];
   petCount: number;
   onPetToggle: (petType: number, active: boolean) => void;
+  /** The current layout (Offices marks the office it is). */
+  layout: OfficeLayout;
+  onPickOffice: (office: OfficePreset) => void;
   // Carpet state + handlers
   carpetVariant: number;
   carpetColor: ColorValue;
@@ -130,6 +136,8 @@ export function EditorToolbar({
   activePetTypes,
   petCount,
   onPetToggle,
+  layout,
+  onPickOffice,
   carpetVariant,
   carpetColor,
   carpetAccentColor,
@@ -210,6 +218,7 @@ export function EditorToolbar({
     (activeTool === EditTool.COLOR_PICK && !selectedFurnitureUid) ||
     isCarpetActive;
   const isPetsActive = activeTool === EditTool.PETS;
+  const isOfficesActive = activeTool === EditTool.OFFICES;
   const isColorPicking = activeTool === EditTool.COLOR_PICK;
   const carpetVariantCount = getCarpetSetCount();
 
@@ -267,6 +276,14 @@ export function EditorToolbar({
       {/* Tool row — at the bottom */}
       <div className="flex gap-4 flex-wrap">
         <Button
+          variant={isOfficesActive ? 'active' : 'default'}
+          size="md"
+          onClick={() => onToolChange(EditTool.OFFICES)}
+          title="Pick a ready-made office"
+        >
+          Offices
+        </Button>
+        <Button
           variant={isFurnitureActive ? 'active' : 'default'}
           size="md"
           onClick={() => onToolChange(EditTool.FURNITURE_PLACE)}
@@ -317,6 +334,8 @@ export function EditorToolbar({
           Erase
         </Button>
       </div>
+
+      {isOfficesActive && <OfficePicker layout={layout} onPickOffice={onPickOffice} />}
 
       {/* Sub-panel: Floor tiles — stacked bottom-to-top via column-reverse */}
       {isFloorActive && (

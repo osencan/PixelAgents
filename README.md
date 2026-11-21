@@ -5,7 +5,7 @@
 <div align="center">
 
 [![license](https://img.shields.io/github/license/osencan/PixelAgents?color=0183ff&style=flat)](LICENSE)
-[![version](https://img.shields.io/badge/version-2.1.3-0183ff?style=flat)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-2.2.0-0183ff?style=flat)](CHANGELOG.md)
 [![sponsor](https://img.shields.io/badge/sponsor-%E2%99%A5-ea4aaa?style=flat)](https://github.com/sponsors/osencan)
 
 </div>
@@ -116,7 +116,7 @@ npm run build
 node dist/cli.js                # takes the same options
 ```
 
-The first time, the browser asks your consent before installing Claude Code hooks into `~/.claude/settings.json`. Turn on **Settings → Watch All Sessions** to see sessions from every project. To turn off Codex detection, start with `PIXEL_AGENTS_CODEX=0`.
+The first time, the browser asks your consent before installing Claude Code hooks into `~/.claude/settings.json`: say yes, then restart any `claude` sessions that were already running (Claude Code reads hooks when a session starts). **Settings → Watch All Sessions** is on by default, so sessions from every project show up; turn it off to see only the folder you started Pixel Agents in. To turn off Codex detection, start with `PIXEL_AGENTS_CODEX=0`.
 
 ## The office at a glance
 
@@ -171,7 +171,9 @@ Then:
 
 ### Layout and rooms
 
-Click **Layout** to paint floors, walls and carpets, place and recolor furniture, add pets, and paint named **Areas**. In the **Areas** panel each room has a **purpose** (Work, Rest, Waiting, Planning). Also set when agents fall asleep in the rest room, and whether permission waits walk to the waiting room. Layouts can be exported and imported as JSON.
+Click **Layout → Offices** to start from a ready-made office: **Four Rooms** (the default: a waiting room, two work rooms and a rest room), **Two Rooms**, **Blue Office** or **Severance**. Picking one replaces the floor plan, furniture and rooms but keeps your pets, and **Undo** (or **Reset**, back to the last save) brings your old office back.
+
+In **Layout** you can also paint floors, walls and carpets, place and recolor furniture, add pets, and paint named **Areas**. In the **Areas** panel each room has a **purpose** (Work, Rest, Waiting, Planning). Also set when agents fall asleep in the rest room, and whether permission waits walk to the waiting room. Layouts can be exported and imported as JSON.
 
 ### Office assets
 
@@ -207,7 +209,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the project structure and how an even
 ## Troubleshooting
 
 - **Won't start (`EADDRNOTAVAIL`)**: the `--host` address isn't this machine's current IP. Check it, or give the machine a fixed address in your router.
-- **An agent is missing**: confirm **Settings → Instant Detection (Hooks)** is on, and turn on **Watch All Sessions** for other projects.
+- **An agent is missing**: confirm **Settings → Instant Detection (Hooks)** is on and **Watch All Sessions** is on, then restart that `claude` session so it picks up the hooks.
 - **No Approve/Deny buttons**: you need control (Settings → Agent controls), the project's approval switch must be on, and the request must come from Claude in that project.
 - **Can't hire an agent**: add the folder as a **Directory** first; other folders are refused.
 - **The UI looks disconnected**: **Settings → Debug View** shows the connection and agent data.
@@ -219,6 +221,8 @@ If Pixel Agents 2.0 is useful to you, consider [sponsoring its development](http
 ## Credits and thanks
 
 Pixel Agents 2.0 builds on [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents) 1.x, created by [Pablo De Lucca](https://github.com/pablodelucca) and its contributors. The office, layout editor, characters, radio and much more come from their work. Thank you! Consider [supporting the original project](https://github.com/sponsors/pablodelucca). Version 2.0 continues from v1.6.0 as its own line and is not affiliated with or endorsed by the original project.
+
+The Two Rooms, Blue Office and Severance offices are Pablo De Lucca's, from the [Pixel Agents layout index](https://github.com/pixel-agents-hq/index) (MIT).
 
 Several 2.1 features (token totals, quiet-agent detection, speech bubbles, keyboard triage, the persisted history) adapt ideas from [The Lobby](https://github.com/Lilykos/orca-the-lobby) by Lilykos (MIT). Thank you!
 

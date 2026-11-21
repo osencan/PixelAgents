@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.2.0
+
+- **Layout → Offices:** pick a ready-made office: Four Rooms, Two Rooms, Blue Office or Severance. Picking one replaces the floor plan, furniture and rooms, keeps your pets and room settings, and can be undone (or reset to the last save).
+- **Watch All Sessions is on by default in the browser app**, so `npx @osencan/pixel-agents` shows sessions from every project, not only the folder it was started in. A setting you already chose is kept. VS Code is unchanged.
+- **Four Rooms is the new default office** for new installs. An office you already have is left as it is.
+
 ## v2.1.3
 
 - README: the Getting started steps say plainly that every device (phone, tablet, a TV browser) opens the same full URL with its `?token=`, how to make the office reachable on your LAN, and where the PIN comes in. No code changes.

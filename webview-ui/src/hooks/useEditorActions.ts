@@ -39,6 +39,8 @@ import {
 import type { EditorState } from '../office/editor/editorState.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { getRotatedType, getToggledType } from '../office/layout/furnitureCatalog.js';
+import type { OfficePreset } from '../office/layout/offices.js';
+import { layoutForOffice } from '../office/layout/offices.js';
 import type {
   AreaPurpose,
   EditTool as EditToolType,
@@ -84,6 +86,8 @@ interface EditorActions extends Omit<FurnitureColorActions, 'pickColorAt'> {
   /** A furniture drag released at (col,row): move it there, or drop a copy with `duplicate`. */
   handleDrop: (uid: string, col: number, row: number, opts: { duplicate: boolean }) => void;
   handlePetToggle: (petType: number, active: boolean) => void;
+  /** Layout → Offices: replace the floor plan with a ready-made office (one undo step). */
+  handlePickOffice: (office: OfficePreset) => void;
   // Carpet state + handlers
   carpetVariant: number;
   carpetColor: ColorValue;
@@ -625,6 +629,13 @@ export function useEditorActions(
     [getOfficeState, applyEdit],
   );
 
+  const handlePickOffice = useCallback(
+    (office: OfficePreset) => {
+      applyEdit(layoutForOffice(office, getOfficeState().getLayout()));
+    },
+    [getOfficeState, applyEdit],
+  );
+
   /**
    * The active tool acting on (col,row): a click, or a tile crossed while
    * dragging. Selecting and dragging placed items never get here — the canvas
@@ -764,6 +775,9 @@ export function useEditorActions(
         case EditTool.CARPET_PAINT:
           applyStrokeEdit(eraseCarpet(layout, col, row));
           return;
+        case EditTool.OFFICES:
+          // Picking an office is the panel's job; the canvas erases nothing.
+          return;
         default:
           applyStrokeEdit(eraseTile(layout, col, row));
       }
@@ -803,6 +817,7 @@ export function useEditorActions(
     handleEditorSelectionChange,
     handleDrop,
     handlePetToggle,
+    handlePickOffice,
     carpetVariant,
     carpetColor,
     carpetAccentColor,
