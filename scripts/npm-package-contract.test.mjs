@@ -5,11 +5,14 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {
+  EXPECTED_PACKAGE_NAME,
   getPublicationDecision,
   normalizePackMetadata,
+  npmManifest,
   parsePackJsonOutput,
   REQUIRED_PACKAGE_FILES,
   REQUIRED_PACKAGE_PREFIXES,
+  STAGED_PACKAGE_PATHS,
   validatePackageFiles,
   validateReleaseIdentity,
   validateTarballIntegrity,
@@ -55,9 +58,9 @@ test('rejects source and preview files even when required files exist', () => {
 
 test('validates release tag, ref, repository, and monotonic version', () => {
   const manifest = {
-    name: 'pixel-agents',
+    name: '@osencan/pixel-agents',
     version: '1.4.0',
-    repository: { url: 'https://github.com/pixel-agents-hq/pixel-agents' },
+    repository: { url: 'https://github.com/osencan/PixelAgents' },
   };
   assert.doesNotThrow(() =>
     validateReleaseIdentity({
@@ -95,6 +98,68 @@ test('validates release tag, ref, repository, and monotonic version', () => {
       latestVersion: '1.0.2',
       exactVersionExists: true,
     }),
+  );
+});
+
+test('the first release has no npm latest to compare against', () => {
+  const manifest = {
+    name: '@osencan/pixel-agents',
+    version: '2.1.2',
+    repository: { url: 'https://github.com/osencan/PixelAgents' },
+  };
+  assert.doesNotThrow(() =>
+    validateReleaseIdentity({
+      manifest,
+      releaseTag: 'v2.1.2',
+      ref: 'refs/tags/v2.1.2',
+      latestVersion: null,
+    }),
+  );
+});
+
+test('refuses the unscoped 1.x name and the upstream repository', () => {
+  const release = { releaseTag: 'v2.1.2', ref: 'refs/tags/v2.1.2', latestVersion: null };
+  const repository = { url: 'https://github.com/osencan/PixelAgents' };
+  assert.throws(
+    () =>
+      validateReleaseIdentity({
+        ...release,
+        manifest: { name: 'pixel-agents', version: '2.1.2', repository },
+      }),
+    /Expected package name @osencan\/pixel-agents/,
+  );
+  assert.throws(
+    () =>
+      validateReleaseIdentity({
+        ...release,
+        manifest: {
+          name: '@osencan/pixel-agents',
+          version: '2.1.2',
+          repository: { url: 'https://github.com/pixel-agents-hq/pixel-agents' },
+        },
+      }),
+    /Expected repository/,
+  );
+});
+
+test('npm manifest keeps the CLI and drops the VS Code extension fields', () => {
+  const root = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
+  const manifest = npmManifest(root);
+  assert.equal(manifest.name, EXPECTED_PACKAGE_NAME);
+  assert.equal(manifest.version, root.version);
+  assert.deepEqual(manifest.bin, { 'pixel-agents': './dist/cli.js' });
+  assert.deepEqual(manifest.dependencies, root.dependencies);
+  assert.equal(manifest.publishConfig.access, 'public');
+  for (const field of ['main', 'contributes', 'activationEvents', 'publisher', 'scripts']) {
+    assert.equal(field in manifest, false, `${field} must not reach the npm manifest`);
+  }
+  assert.equal(STAGED_PACKAGE_PATHS.includes('dist/extension.js'), false);
+});
+
+test('rejects the VS Code entry points in the npm tarball', () => {
+  assert.throws(
+    () => validatePackageFiles([...validFiles(), { path: 'dist/extension.js' }]),
+    /forbidden package path: dist\/extension\.js/,
   );
 });
 

@@ -3,8 +3,13 @@ import fs from 'node:fs';
 
 import semver from 'semver';
 
-export const EXPECTED_PACKAGE_NAME = 'pixel-agents';
-export const EXPECTED_REPOSITORY_URL = 'https://github.com/pixel-agents-hq/pixel-agents';
+// 2.x publishes under its own scope: the unscoped `pixel-agents` belongs to the
+// original 1.x project. The root package.json keeps the plain name because it is
+// also the VS Code extension manifest, and vsce rejects scoped names, so the npm
+// package is packed from a staged folder whose manifest `npmManifest` writes.
+export const EXPECTED_PACKAGE_NAME = '@osencan/pixel-agents';
+export const EXPECTED_REPOSITORY_URL = 'https://github.com/osencan/PixelAgents';
+export const PACKAGE_BIN = 'pixel-agents';
 
 // fastify + @fastify/{cors,static,websocket} are root runtime `dependencies` even though
 // no root source file imports them: esbuild marks them `external` when bundling
@@ -18,8 +23,8 @@ export const REQUIRED_PACKAGE_FILES = [
   'LICENSE',
   'README.md',
   'dist/cli.js',
-  'dist/extension.js',
   'dist/hooks/claude-hook.js',
+  'dist/hooks/claude-statusline.js',
   'dist/webview/index.html',
   'icon.png',
   'package.json',
@@ -33,6 +38,9 @@ export const FORBIDDEN_PACKAGE_PREFIXES = [
   'adapters/',
   'core/',
   'dist/browser/',
+  'dist/extension.js',
+  'dist/pty-host.js',
+  'dist/uninstall.js',
   'dist/webview-preview/',
   'docs/',
   'e2e/',
@@ -42,6 +50,42 @@ export const FORBIDDEN_PACKAGE_PREFIXES = [
   'test-results/',
   'webview-ui/',
 ];
+
+// What the staged package holds besides its generated package.json: the CLI and
+// what it loads at runtime, never the VS Code entry points or dev-only bundles.
+export const STAGED_PACKAGE_PATHS = [
+  'CHANGELOG.md',
+  'LICENSE',
+  'README.md',
+  'icon.png',
+  'dist/cli.js',
+  'dist/hooks/claude-hook.js',
+  'dist/hooks/claude-statusline.js',
+  'dist/assets',
+  'dist/webview',
+];
+
+/** The npm manifest, derived from the root (VS Code) manifest: CLI fields only. */
+export function npmManifest(root) {
+  return {
+    name: EXPECTED_PACKAGE_NAME,
+    version: root.version,
+    // The root description is the VS Code extension's; this one names both CLIs.
+    description:
+      'Watch and steer your Claude Code and Codex agents as pixel-art characters in a tiny office, from any browser or your phone.',
+    keywords: ['claude-code', 'codex', 'ai-agents', 'pixel-art', 'agent-monitoring', 'cli'],
+    homepage: root.homepage,
+    bugs: { url: `${EXPECTED_REPOSITORY_URL}/issues` },
+    repository: { type: 'git', url: EXPECTED_REPOSITORY_URL },
+    license: root.license,
+    engines: { node: root.engines.node },
+    bin: { [PACKAGE_BIN]: './dist/cli.js' },
+    files: STAGED_PACKAGE_PATHS,
+    dependencies: root.dependencies,
+    optionalDependencies: root.optionalDependencies,
+    publishConfig: { access: 'public' },
+  };
+}
 
 export function parsePackJsonOutput(output) {
   const trimmed = output.trim();
@@ -135,6 +179,8 @@ export function validateReleaseIdentity({
   if (ref !== expectedRef) {
     throw new Error(`Release ref ${ref} does not match ${expectedRef}`);
   }
+  // null = nothing published under this name yet (the first release).
+  if (latestVersion === null) return;
   if (!semver.valid(latestVersion)) {
     throw new Error(`Invalid npm latest version: ${String(latestVersion)}`);
   }

@@ -54,11 +54,11 @@ npm run test:package-contract
 npm run verify:npm-package
 ```
 
-The verifier runs the production `prepack` build, creates a tarball outside the repository, installs that exact tarball into a temporary project, and exercises CLI help, the health endpoint, the standalone SPA, bundled assets, and default Hook ON setup. Temporary files and the child server are removed automatically; it never publishes to npm.
+The verifier runs the production build, stages the package in a temporary folder with its own npm manifest (`@osencan/pixel-agents`; the root `package.json` is the VS Code manifest and keeps its plain name), packs it outside the repository, installs that exact tarball into a temporary project, and exercises CLI help, the health endpoint, the standalone SPA, bundled assets, and default Hook ON setup. Temporary files and the child server are removed automatically; it never publishes to npm.
 
 ### Maintainer release checklist
 
-Pixel Agents 2.x is released on GitHub only. It is not published to npm, the VS Code Marketplace or Open VSX (those listings belong to the original 1.x project), so a release no longer triggers [`.github/workflows/publish-extension.yml`](.github/workflows/publish-extension.yml). You can still run that workflow by hand in dry-run mode to check the packages.
+Pixel Agents 2.x is released on GitHub and on npm as `@osencan/pixel-agents`. It is not published to the VS Code Marketplace or Open VSX (those listings, and the unscoped `pixel-agents` npm package, belong to the original 1.x project). A release doesn't trigger [`.github/workflows/publish-extension.yml`](.github/workflows/publish-extension.yml); you can run it by hand in dry-run mode to check the packages.
 
 For each release:
 
@@ -66,6 +66,15 @@ For each release:
 2. Run `npm ci`, `npm test`, `npm run format:check`, `npm run e2e:inventory` (commit any change to `e2e/README.md`) and `npm run verify:npm-package`.
 3. Push the release commit to `main` and wait for CI to pass.
 4. Create a GitHub Release whose tag is exactly `v<package.json version>` (for example, `v2.0.3`), pointing at that commit's full SHA.
+5. Publish that verified tarball to npm from the release commit (needs `npm login` as the scope's owner):
+
+   ```bash
+   npm run verify:npm-package -- --output-dir /tmp/pixel-agents-npm
+   node scripts/publish-npm-package.mjs --metadata /tmp/pixel-agents-npm/package-metadata.json \
+     --tag v<version> --ref refs/tags/v<version>
+   ```
+
+   It refuses a name, repository or tag that doesn't match, and a version not newer than npm's latest.
 
 ## Development Workflow
 

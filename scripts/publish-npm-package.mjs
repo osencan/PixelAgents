@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   getPublicationDecision,
+  npmManifest,
   validateReleaseIdentity,
   validateTarballIntegrity,
 } from './npm-package-contract.mjs';
@@ -42,9 +43,10 @@ async function npmView(args) {
   return JSON.parse(result.stdout.trim());
 }
 
-async function getPublishedIntegrity(packageId) {
+/** npm view, or null when the package or version isn't on the registry. */
+async function npmViewOrNull(args) {
   try {
-    return await npmView([packageId, 'dist.integrity']);
+    return await npmView(args);
   } catch (error) {
     const output = `${error?.stdout ?? ''}\n${error?.stderr ?? ''}`;
     if (output.includes('E404')) return null;
@@ -54,7 +56,7 @@ async function getPublishedIntegrity(packageId) {
 
 async function npmPublish(tarballPath) {
   await new Promise((resolve, reject) => {
-    const child = spawn(npmCommand(), ['publish', tarballPath], {
+    const child = spawn(npmCommand(), ['publish', tarballPath, '--access', 'public'], {
       cwd: REPO_ROOT,
       env: process.env,
       stdio: 'inherit',
@@ -69,11 +71,13 @@ async function npmPublish(tarballPath) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf-8'));
+  const manifest = npmManifest(
+    JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf-8')),
+  );
   const metadata = JSON.parse(fs.readFileSync(path.resolve(args.metadata), 'utf-8'));
-  const latestVersion = await npmView([manifest.name, 'dist-tags.latest']);
+  const latestVersion = await npmViewOrNull([manifest.name, 'dist-tags.latest']);
   const expectedId = `${manifest.name}@${manifest.version}`;
-  const publishedIntegrity = await getPublishedIntegrity(expectedId);
+  const publishedIntegrity = await npmViewOrNull([expectedId, 'dist.integrity']);
 
   validateReleaseIdentity({
     manifest,

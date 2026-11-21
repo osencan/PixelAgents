@@ -1,8 +1,10 @@
 name: Publish Extension
 
-# Pixel Agents 2.x is not published to npm, the VS Code Marketplace or Open VSX
+# Pixel Agents 2.x is not published to the VS Code Marketplace or Open VSX
 # (those listings belong to the original 1.x project), so releases no longer
 # trigger this workflow. Run it by hand in dry-run mode to verify packaging.
+# The npm package (@osencan/pixel-agents) is published by hand: see
+# CONTRIBUTING.md, "Maintainer release checklist".
 on:
   workflow_dispatch:
     inputs:

@@ -5,7 +5,7 @@
 <div align="center">
 
 [![license](https://img.shields.io/github/license/osencan/PixelAgents?color=0183ff&style=flat)](LICENSE)
-[![version](https://img.shields.io/badge/version-2.1.1-0183ff?style=flat)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-2.1.2-0183ff?style=flat)](CHANGELOG.md)
 [![sponsor](https://img.shields.io/badge/sponsor-%E2%99%A5-ea4aaa?style=flat)](https://github.com/sponsors/osencan)
 
 </div>
@@ -73,25 +73,47 @@ Pixel Agents turns the AI coding agents running in your terminals into animated 
 
 ## Getting started
 
-Version 2.0 isn't published to npm; run it from source:
+Run it with npm (no clone needed):
+
+```bash
+npx @osencan/pixel-agents                                   # open it on this machine only
+npx @osencan/pixel-agents --host 192.168.1.20 --port 3100   # make it reachable on your LAN
+```
+
+For the LAN, use this computer's own address on your network in place of `192.168.1.20`. Pick a fixed `--port` too, so the address stays the same between restarts.
+
+To keep it installed, `npm install -g @osencan/pixel-agents` and then run `pixel-agents`. The npm package is the browser app only. The unscoped `pixel-agents` package on npm is the original 1.x project, not this one.
+
+On start, the server prints a private URL that ends in a token:
+
+```
+Pixel Agents server running at http://192.168.1.20:3100/?token=3f9c…
+```
+
+**Every device opens that same full URL, token included.** The token is what lets a browser arrange the office and use the controls:
+
+- **On this computer**, open the printed URL.
+- **On another device** (phone, tablet, a TV browser, another computer), open the same URL. Copy the whole thing from the terminal, including `?token=…`, by sending it to yourself or typing it in. Then bookmark it. The token is kept in `~/.pixel-agents/standalone-token`, so with a fixed `--port` the URL keeps working after a restart.
+- **To steer agents from another device** (approve requests, start agents, type into them), also enter the control PIN there. See [Agent controls](#agent-controls).
+
+The address without the token (`http://192.168.1.20:3100/`) still opens the office on any device, but as a **read-only** view. Treat the token URL as a secret, like a password.
+
+Useful options:
+
+```bash
+pixel-agents --port 3100        # a fixed port (bookmarks keep working)
+pixel-agents --no-terminal      # watch-only: no hiring agents, no terminals
+pixel-agents --help
+```
+
+Or run it from source:
 
 ```bash
 git clone https://github.com/osencan/PixelAgents.git
 cd PixelAgents
 npm ci
 npm run build
-node dist/cli.js                                   # this machine only
-node dist/cli.js --host 192.168.1.20 --port 3100   # also reachable on your LAN
-```
-
-The server prints a private URL with a `?token=`: open it to arrange the office and use the controls. Opening the plain address without the token, from any device, gives a **read-only** view. Treat the token URL as a secret.
-
-Useful options:
-
-```bash
-node dist/cli.js --port 3100        # a fixed port (bookmarks keep working)
-node dist/cli.js --no-terminal      # watch-only: no hiring agents, no terminals
-node dist/cli.js --help
+node dist/cli.js                # takes the same options
 ```
 
 The first time, the browser asks your consent before installing Claude Code hooks into `~/.claude/settings.json`. Turn on **Settings → Watch All Sessions** to see sessions from every project. To turn off Codex detection, start with `PIXEL_AGENTS_CODEX=0`.

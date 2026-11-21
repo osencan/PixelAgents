@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.1.2
+
+- **On npm:** install and run with `npx @osencan/pixel-agents` (the command is still `pixel-agents`). The unscoped `pixel-agents` package is the original 1.x project. The npm package holds only the browser app: the server, the office, its assets and the hook scripts, without the VS Code extension.
+- Running from source still works as before.
+
 ## v2.1.1
 
 - **The PIN now guards this computer's setup too:** installing or removing Claude hooks or Usage Bars (both write `~/.claude/settings.json`) and adding or removing asset folders need Agent controls, like approvals. A device with only the token can still arrange the office. Its switches for these snap back, and Settings says why. This machine and VS Code are unchanged.
