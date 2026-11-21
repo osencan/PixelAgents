@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.1.3
+
+- README: the Getting started steps say plainly that every device (phone, tablet, a TV browser) opens the same full URL with its `?token=`, how to make the office reachable on your LAN, and where the PIN comes in. No code changes.
+
 ## v2.1.2
 
 - **On npm:** install and run with `npx @osencan/pixel-agents` (the command is still `pixel-agents`). The unscoped `pixel-agents` package is the original 1.x project. The npm package holds only the browser app: the server, the office, its assets and the hook scripts, without the VS Code extension.
