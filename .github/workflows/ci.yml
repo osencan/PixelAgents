@@ -17,13 +17,23 @@ on:
       - '**.md'
       - 'LICENSE'
       - '.github/FUNDING.yml'
+  # The full Linux + macOS + Windows e2e matrix runs only when started by hand
+  # (Actions -> CI -> Run workflow), e.g. before a release.
+  workflow_dispatch:
+    inputs:
+      all_os:
+        description: 'Run e2e on Linux, macOS and Windows (otherwise Linux only)'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
+# A newer push to the same branch or PR supersedes the older run, main
+# included: only the newest main commit is released.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: true
 
 jobs:
   ci:
@@ -260,17 +270,16 @@ jobs:
     # 3 OSes x 3 shards = 9 runs. Shard distribution is test-level (Playwright
     # `fullyParallel` in playwright.config.ts), so each shard runs ~1/3 of the
     # suite at --workers=1 (the safe ceiling; CI runners flake with more).
-    # Public repo, so macOS/Windows minutes are free. The Linux-only system-deps
+    # Pushes and pull requests (Dependabot's included) run Linux only, ~30 min
+    # instead of 75-110; a manual run (workflow_dispatch, all_os) runs all
+    # three OSes. The Linux-only system-deps
     # install is gated by `runner.os` inside the install step. Artifact names use
     # matrix.target.label (linux/macos/windows) so downstream download patterns
     # stay stable.
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - { os: ubuntu-latest, label: linux }
-          - { os: macos-latest, label: macos }
-          - { os: windows-latest, label: windows }
+        target: ${{ fromJSON((github.event_name == 'workflow_dispatch' && inputs.all_os) && '[{"os":"ubuntu-latest","label":"linux"},{"os":"macos-latest","label":"macos"},{"os":"windows-latest","label":"windows"}]' || '[{"os":"ubuntu-latest","label":"linux"}]') }}
         shard: [1, 2, 3]
     runs-on: ${{ matrix.target.os }}
     timeout-minutes: 60
