@@ -239,7 +239,7 @@ export function dispatchMockMessages(): void {
   dispatch({
     type: 'settingsLoaded',
     soundEnabled: false,
-    extensionVersion: '2.3.0',
+    extensionVersion: '2.3.1',
     lastSeenVersion: '1.2',
   });
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.3.1
+
+- **Antigravity on older Node:** when Antigravity conversations exist but Node is older than 22.5, the server now says so once in its log, instead of leaving them out without a word. Update Node (24 or later is simplest) to see them in the office.
+- README: the Node requirement for Antigravity is on the Node line, and `npx @osencan/pixel-agents@latest` gets the newest release when `npx` holds on to an older copy.
+
 ## v2.3.0
 
 - **Gemini CLI and Grok Build sessions** appear in the office next to Claude Code and Codex, read-only, from their own session logs. Their characters show whether they are thinking, reading, editing or running a command, and the Agent filter lists them as providers. Nothing is written to `~/.gemini` or `~/.grok`, and they can't be started from the office yet. Turn either off with `PIXEL_AGENTS_GEMINI=0` or `PIXEL_AGENTS_GROK=0`.

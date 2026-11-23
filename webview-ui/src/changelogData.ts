@@ -48,6 +48,12 @@ export const changelogEntries: ChangelogEntry[] = [
           'A page opened without its access link says so in Settings',
         ],
       },
+      {
+        title: 'Fixed (2.3.1)',
+        items: [
+          'Antigravity on Node older than 22.5: the server log says why its conversations are missing',
+        ],
+      },
     ],
     contributors: [],
   },

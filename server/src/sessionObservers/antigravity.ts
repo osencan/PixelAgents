@@ -94,13 +94,37 @@ export function reduceAntigravityStep(s: ObservedSession, record: unknown): void
   // Tool results (GENERIC), errors and system steps change nothing.
 }
 
-/** The workspace folder a conversation runs in, from its database (see the header). */
-export async function antigravityWorkspace(dbFile: string): Promise<string> {
-  let sqlite: typeof import('node:sqlite');
+type Sqlite = typeof import('node:sqlite');
+
+/** What the server logs, once, when it can't read a conversation's database. */
+export function sqliteMissingWarning(nodeVersion: string): string {
+  return (
+    `[Pixel Agents] Antigravity conversations found but not shown: finding their folder ` +
+    `needs Node 22.5 or later (Node ${nodeVersion} is running; on 22.5 to 22.12 start ` +
+    `with --experimental-sqlite). Update Node to see them in the office.`
+  );
+}
+
+let sqliteMissingWarned = false;
+
+/**
+ * The workspace folder a conversation runs in, from its database (see the
+ * header). Without node:sqlite it is unknown: the conversation is skipped,
+ * and the server says why once instead of showing nothing silently.
+ */
+export async function antigravityWorkspace(
+  dbFile: string,
+  loadSqlite: () => Promise<Sqlite> = () => import('node:sqlite'),
+): Promise<string> {
+  let sqlite: Sqlite;
   try {
-    sqlite = await import('node:sqlite');
+    sqlite = await loadSqlite();
   } catch {
-    return ''; // Node without node:sqlite.
+    if (!sqliteMissingWarned) {
+      sqliteMissingWarned = true;
+      console.warn(sqliteMissingWarning(process.version));
+    }
+    return '';
   }
   try {
     await fs.access(dbFile);

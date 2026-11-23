@@ -5,7 +5,7 @@
 <div align="center">
 
 [![license](https://img.shields.io/github/license/osencan/PixelAgents?color=0183ff&style=flat)](LICENSE)
-[![version](https://img.shields.io/badge/version-2.3.0-0183ff?style=flat)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-2.3.1-0183ff?style=flat)](CHANGELOG.md)
 [![sponsor](https://img.shields.io/badge/sponsor-%E2%99%A5-ea4aaa?style=flat)](https://github.com/sponsors/osencan)
 
 </div>
@@ -67,8 +67,8 @@ Pixel Agents turns the AI coding agents running in your terminals into animated 
 
 ## Requirements
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and signed in. Codex, Gemini CLI, Antigravity and Grok Build are optional and detected if present. Antigravity needs Node 22.5 or later.
-- Node.js 20 or later
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and signed in. Codex, Gemini CLI, Antigravity and Grok Build are optional and detected if present.
+- Node.js 20 or later; **22.5 or later to see Antigravity** (24 recommended). On older Node, Antigravity conversations are left out and the server log says why.
 - macOS, Linux or Windows. Pixel Agents 2.0 is developed and tested on macOS with the **standalone browser app**. The VS Code extension builds from the same source but is untested here.
 
 ## Getting started
@@ -81,6 +81,8 @@ npx @osencan/pixel-agents --host 192.168.1.20 --port 3100   # make it reachable 
 ```
 
 For the LAN, use this computer's own address on your network in place of `192.168.1.20`. Pick a fixed `--port` too, so the address stays the same between restarts.
+
+`npx` can keep running an older copy it downloaded before; `npx @osencan/pixel-agents@latest` makes sure you get the newest release.
 
 To keep it installed, `npm install -g @osencan/pixel-agents` and then run `pixel-agents`. The npm package is the browser app only. The unscoped `pixel-agents` package on npm is the original 1.x project, not this one.
 

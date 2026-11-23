@@ -13,6 +13,7 @@ import {
   antigravityWorkspace,
   emptyAntigravitySession,
   reduceAntigravityStep,
+  sqliteMissingWarning,
   toolCategory,
 } from '../src/sessionObservers/antigravity.js';
 import { ObserverOfficeBridge } from '../src/sessionObservers/officeBridge.js';
@@ -114,6 +115,17 @@ describe('conversation files', () => {
     expect(await antigravityWorkspace(path.join(dbs, 'c1.db'))).toBe('/projects/site');
     expect(await antigravityWorkspace(path.join(dbs, 'c2.db'))).toBe(long);
     expect(await antigravityWorkspace(path.join(dbs, 'missing.db'))).toBe('');
+  });
+
+  test('without node:sqlite the conversation is skipped and the server says why, once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const noSqlite = () => Promise.reject(new Error('No such built-in module: node:sqlite'));
+    expect(await antigravityWorkspace('/any/c1.db', noSqlite)).toBe('');
+    expect(await antigravityWorkspace('/any/c2.db', noSqlite)).toBe('');
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(sqliteMissingWarning(process.version));
+    expect(sqliteMissingWarning('v20.11.0')).toContain('Node 22.5 or later (Node v20.11.0');
+    warn.mockRestore();
   });
 
   test('lists every product’s transcripts and follows one as it grows', async () => {
