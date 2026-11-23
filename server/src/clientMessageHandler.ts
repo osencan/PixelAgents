@@ -20,6 +20,7 @@ import {
 import {
   getHooksConsent,
   getHooksEnabled,
+  parseAreaMappings,
   readConfig,
   setHooksEnabled,
   writeConfig,
@@ -34,8 +35,10 @@ import {
   auditControl,
   isPinSet,
   isValidPinShape,
+  remoteDirectoriesAllowed,
   setApprovalEnabled,
   setControlPin,
+  setRemoteDirectories,
 } from './controlPolicy.js';
 import {
   conversationLimitsFrom,
@@ -146,10 +149,12 @@ export const CONTROL_MESSAGE_TYPES: ReadonlySet<string> = new Set([
   'closeAgent',
 ]);
 /**
- * Host configuration outside the office: Claude's settings.json (hooks, the
- * status line) and folders the server reads assets from. A tokened device
- * without the control PIN can still arrange the office, but not change these;
- * this machine (local tokened sockets) and VS Code are unaffected.
+ * Host configuration and host-filesystem/session queries outside office
+ * arrangement: Claude's settings.json (hooks, the status line), folders the
+ * server reads assets or launches agents from, conversation listings, and
+ * diagnostics. A tokened device without the control PIN can still arrange the
+ * office, but not change or query these; this machine (local tokened sockets)
+ * and VS Code are unaffected.
  */
 export const HOST_CONFIG_MESSAGE_TYPES: ReadonlySet<string> = new Set([
   'setHooksEnabled',
@@ -157,7 +162,63 @@ export const HOST_CONFIG_MESSAGE_TYPES: ReadonlySet<string> = new Set([
   'setUsageBridgeEnabled',
   'addExternalAssetDirectory',
   'removeExternalAssetDirectory',
+  'saveDirectory',
+  'removeDirectory',
+  'requestDirectorySuggestions',
+  'requestConversations',
+  'searchConversations',
+  'requestDiagnostics',
+  'setShowHostDirectories',
+  'setWatchAllSessions',
 ]);
+
+/** Bounds for persisted layout and area-mapping payloads from WebSocket clients. */
+const MAX_LAYOUT_JSON_BYTES = 512 * 1024;
+const MAX_LAYOUT_DIMENSION = 256;
+const MAX_AREA_MAPPING_KEYS = 500;
+const MAX_AREA_MAPPING_LABELS = 100;
+const MAX_AREA_MAPPING_TEXT_CHARS = 200;
+
+function isValidLayoutPayload(layout: unknown): layout is Record<string, unknown> {
+  if (!layout || typeof layout !== 'object' || Array.isArray(layout)) return false;
+  const obj = layout as Record<string, unknown>;
+  const { cols, rows, tiles } = obj;
+  if (
+    typeof cols !== 'number' ||
+    !Number.isInteger(cols) ||
+    cols < 1 ||
+    cols > MAX_LAYOUT_DIMENSION ||
+    typeof rows !== 'number' ||
+    !Number.isInteger(rows) ||
+    rows < 1 ||
+    rows > MAX_LAYOUT_DIMENSION
+  ) {
+    return false;
+  }
+  if (!Array.isArray(tiles) || tiles.length !== cols * rows) return false;
+  if (!tiles.every((t) => typeof t === 'number' && Number.isFinite(t))) return false;
+  try {
+    return Buffer.byteLength(JSON.stringify(layout), 'utf-8') <= MAX_LAYOUT_JSON_BYTES;
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeAreaMappings(raw: unknown): Record<string, string[]> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const parsed = parseAreaMappings(raw);
+  const out: Record<string, string[]> = {};
+  let keys = 0;
+  for (const [dir, labels] of Object.entries(parsed)) {
+    if (keys >= MAX_AREA_MAPPING_KEYS) break;
+    const cleanDir = dir.slice(0, MAX_AREA_MAPPING_TEXT_CHARS);
+    out[cleanDir] = labels
+      .slice(0, MAX_AREA_MAPPING_LABELS)
+      .map((l) => l.slice(0, MAX_AREA_MAPPING_TEXT_CHARS));
+    keys++;
+  }
+  return out;
+}
 const KEY_BYPASS_PERMISSIONS = 'pixel-agents.bypassPermissions';
 const KEY_SHOW_HOST_DIRECTORIES = 'pixel-agents.showHostDirectories';
 
@@ -437,6 +498,21 @@ export function handleClientMessage(
       break;
     }
 
+    case 'setRemoteDirectories': {
+      // Only from this machine: a device must never widen its own reach.
+      const ok = ctx.local === true && typeof msg.enabled === 'boolean';
+      if (ok) setRemoteDirectories(msg.enabled as boolean);
+      auditControl({
+        action: msg.enabled === true ? 'allowRemoteDirectories' : 'refuseRemoteDirectories',
+        client: ctx.local ? 'local' : 'remote',
+        outcome: ok ? 'ok' : 'refused',
+      });
+      // Every page hears the new value through controlAccess (onControlPolicyChange);
+      // a refused one is answered with the unchanged truth.
+      if (!ok) send({ type: 'controlRefused', action: 'setRemoteDirectories' });
+      break;
+    }
+
     case 'approvePermission': {
       // Control only (the gate above). The broker audits the answer.
       const behavior = msg.behavior;
@@ -469,10 +545,10 @@ export function handleClientMessage(
       break;
 
     case 'saveLayout':
-      if (msg.layout) {
+      if (isValidLayoutPayload(msg.layout)) {
         // A /ws client's save: the VS Code panel learns of it through its layout
         // watcher (the standalone server has none), so don't silence it.
-        writeLayoutToFile(msg.layout as Record<string, unknown>, { reportToWatchers: true });
+        writeLayoutToFile(msg.layout, { reportToWatchers: true });
       }
       break;
 
@@ -634,12 +710,12 @@ export function handleClientMessage(
     }
 
     case 'saveAreaMappings': {
-      const rawMappings = msg.mappings;
-      if (!rawMappings || typeof rawMappings !== 'object') {
+      const sanitized = sanitizeAreaMappings(msg.mappings);
+      if (!sanitized) {
         break;
       }
       const cfg = readConfig();
-      cfg.standalone.areaMappings = rawMappings as Record<string, string[]>;
+      cfg.standalone.areaMappings = sanitized;
       writeConfig(cfg);
       break;
     }
@@ -675,6 +751,28 @@ export function handleClientMessage(
     }
 
     case 'saveDirectory':
+      // Only this machine may add launchable Directories, so `isListedDirectory`
+      // stays a real boundary against remote devices adding arbitrary host paths,
+      // unless the host let PIN-unlocked devices do it (setRemoteDirectories;
+      // ctx.control is already required above, saveDirectory being host config).
+      if (ctx.local !== true && !(ctx.control === true && remoteDirectoriesAllowed())) {
+        auditControl({
+          action: 'saveDirectory',
+          client: 'remote',
+          outcome: 'refused-remote',
+        });
+        send({ type: 'controlRefused', action: 'saveDirectory' });
+        break;
+      }
+      handleDirectoryClientMessage(msg, {
+        hostDirectories: () => shownHostDirectoriesFor(ctx),
+        broadcast: (message) => store.broadcast(message),
+        reply: send,
+        suggestions: () =>
+          collectDirectorySuggestions(claudeProvider, shownHostDirectoriesFor(ctx)),
+      });
+      break;
+
     case 'removeDirectory':
     case 'requestDirectorySuggestions':
       // Shared with the VS Code adapter: same validation, same union, same
@@ -845,7 +943,7 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
 
   // 4. Settings (from adapter, with sensible defaults when adapter is absent)
   const cfg = readConfig();
-  const settings = settingsSnapshot(adapter);
+  const settings = settingsSnapshot(adapter, ctx.privileged === true);
   const { watchAllSessions, hooksEnabled } = settings;
   send(settings);
 
@@ -905,7 +1003,7 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   // workspace folders. Gated on ptyManager for the same reason
   // terminalAvailability is: no ptyManager means VS Code embedded mode, whose
   // adapter contributes its own Directories.
-  if (ctx.ptyManager) {
+  if (ctx.ptyManager && ctx.privileged) {
     send(directoriesMessage(ctx));
   }
 
@@ -996,7 +1094,7 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
  * client whose setting change was refused (refuseReadOnly), so its optimistic
  * toggle snaps back to the truth.
  */
-function settingsSnapshot(adapter: StateAdapter | undefined) {
+function settingsSnapshot(adapter: StateAdapter | undefined, privileged = true) {
   return {
     type: 'settingsLoaded',
     soundEnabled: adapter?.getSetting(KEY_SOUND_ENABLED, true) ?? true,
@@ -1011,7 +1109,8 @@ function settingsSnapshot(adapter: StateAdapter | undefined) {
     // hooks tooltip gate.
     hooksEnabled: getHooksEnabled(claudeProvider.id),
     hooksInfoShown: adapter?.getSetting(KEY_HOOKS_INFO_SHOWN, false) ?? false,
-    externalAssetDirectories: readConfig().externalAssetDirectories,
+    // Host filesystem paths belong to privileged connections only.
+    externalAssetDirectories: privileged ? readConfig().externalAssetDirectories : [],
     showAreas: adapter?.getSetting(KEY_SHOW_AREAS, false) ?? false,
     bypassPermissions: false,
     showHostDirectories: adapter?.getSetting(KEY_SHOW_HOST_DIRECTORIES, false) ?? false,
@@ -1067,16 +1166,18 @@ function answerWithTruth(
     case 'setShowAreas':
     case 'setBypassPermissions':
     case 'setShowHostDirectories':
-      send(settingsSnapshot(ctx.store.getAdapter()));
+      send(settingsSnapshot(ctx.store.getAdapter(), ctx.privileged === true));
       return;
     case 'setUsageBridgeEnabled':
-      for (const m of usageSnapshotMessages()) send({ ...m });
+      if (ctx.privileged) {
+        for (const m of usageSnapshotMessages()) send({ ...m });
+      }
       return;
     case 'addExternalAssetDirectory':
     case 'removeExternalAssetDirectory':
       send({
         type: 'externalAssetDirectoriesUpdated',
-        dirs: readConfig().externalAssetDirectories,
+        dirs: ctx.privileged ? readConfig().externalAssetDirectories : [],
       });
       return;
     case 'saveCardOrder':

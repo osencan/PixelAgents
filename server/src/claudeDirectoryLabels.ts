@@ -1,7 +1,8 @@
 /**
- * Project labels for Claude and Codex characters. Claude may keep a rollout in
- * its original project folder after changing cwd, so its label follows the
- * transcript's latest top-level cwd; Codex reports cwd through its observer.
+ * Project labels for Claude and observed (Codex, Gemini, Grok) characters.
+ * Claude may keep a rollout in its original project folder after changing
+ * cwd, so its label follows the transcript's latest top-level cwd; observed
+ * sessions report cwd through their observer.
  * Labels are metadata: they never merge or reassign characters.
  */
 import * as fs from 'node:fs';
@@ -10,10 +11,10 @@ import * as path from 'node:path';
 import type { AgentStateStore } from './agentStateStore.js';
 import { projectDisplayNames, resolveProject } from './projectIdentity.js';
 import { readProjectLabels } from './projectLabels.js';
+import { isObservedProvider, OBSERVED_PROVIDER_NAMES } from './sessionObservers/observer.js';
 import type { AgentState } from './types.js';
 
-const CODEX_LABEL_PREFIX = 'Codex · ';
-const CODEX_SUBAGENT_SUFFIX = ' · subagent';
+const SUBAGENT_SUFFIX = ' · subagent';
 
 export function projectNameForCwd(cwd: string): string | undefined {
   return resolveProject(cwd)?.name;
@@ -21,9 +22,9 @@ export function projectNameForCwd(cwd: string): string | undefined {
 
 /** The label shown for an agent whose project displays as `name`. */
 function labelFor(agent: AgentState, name: string): string {
-  if (agent.providerId !== 'codex') return name;
-  const sub = agent.directoryName?.endsWith(CODEX_SUBAGENT_SUFFIX) ? CODEX_SUBAGENT_SUFFIX : '';
-  return `${CODEX_LABEL_PREFIX}${name}${sub}`;
+  if (!isObservedProvider(agent.providerId)) return name;
+  const sub = agent.directoryName?.endsWith(SUBAGENT_SUFFIX) ? SUBAGENT_SUFFIX : '';
+  return `${OBSERVED_PROVIDER_NAMES[agent.providerId!]} · ${name}${sub}`;
 }
 
 /** Read backwards in bounded chunks, without parsing prompts or nested tool output as cwd. */
@@ -73,7 +74,7 @@ export function startClaudeDirectoryLabels(store: AgentStateStore): { dispose():
   // The worktree each agent's last label broadcast carried.
   const sentWorktree = new Map<number, string | undefined>();
   const cwdFor = (id: number, agent: AgentState): string | undefined => {
-    if (agent.providerId === 'codex') return agent.projectCwd;
+    if (isObservedProvider(agent.providerId)) return agent.projectCwd;
     if (!agent.jsonlFile) return undefined;
     const stat = fs.statSync(agent.jsonlFile);
     const key = `${agent.jsonlFile}:${stat.size}:${stat.mtimeMs}`;

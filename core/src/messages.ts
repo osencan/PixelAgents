@@ -82,6 +82,7 @@ export type ClientMessage =
   | UnlockControl
   | LockControl
   | SetControlPin
+  | SetRemoteDirectories
   | SetApprovalOptIn
   | ApprovePermission
   | SaveCharacterProfiles
@@ -244,12 +245,13 @@ export interface ControlAccess {
   control: boolean;
   local: boolean;
   pinSet: boolean;
+  remoteDirectories?: boolean;
   ticket?: string;
-  error?: AnonymousSchema_73;
+  error?: AnonymousSchema_74;
   lockedUntil?: number;
 }
 
-export type AnonymousSchema_73 = 'wrong' | 'locked' | 'no-pin';
+export type AnonymousSchema_74 = 'wrong' | 'locked' | 'no-pin';
 
 export interface ControlPinUpdated {
   type: 'controlPinUpdated';
@@ -282,10 +284,10 @@ export interface AgentPermissionResolved {
   type: 'agentPermissionResolved';
   id: number;
   requestId: string;
-  outcome: AnonymousSchema_94;
+  outcome: AnonymousSchema_95;
 }
 
-export type AnonymousSchema_94 = 'allow' | 'deny' | 'timeout' | 'withdrawn' | 'elsewhere';
+export type AnonymousSchema_95 = 'allow' | 'deny' | 'timeout' | 'withdrawn' | 'elsewhere';
 
 export interface AgentToolStart {
   type: 'agentToolStart';
@@ -790,6 +792,11 @@ export interface SetControlPin {
   pin: string;
 }
 
+export interface SetRemoteDirectories {
+  type: 'setRemoteDirectories';
+  enabled: boolean;
+}
+
 export interface SetApprovalOptIn {
   type: 'setApprovalOptIn';
   id: number;
@@ -799,10 +806,10 @@ export interface SetApprovalOptIn {
 export interface ApprovePermission {
   type: 'approvePermission';
   requestId: string;
-  behavior: AnonymousSchema_424;
+  behavior: AnonymousSchema_427;
 }
 
-export type AnonymousSchema_424 = 'allow' | 'deny';
+export type AnonymousSchema_427 = 'allow' | 'deny';
 
 export interface SaveCharacterProfiles {
   type: 'saveCharacterProfiles';

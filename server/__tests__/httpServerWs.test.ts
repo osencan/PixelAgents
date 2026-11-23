@@ -596,4 +596,17 @@ describe('/ws remote control unlock', () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(policy.isTicketValid(second)).toBe(false);
   });
+
+  it('sets security headers and does not reflect arbitrary CORS origins on /api/health', async () => {
+    const config = await server.start({ embedded: false, store: new AgentStateStore() });
+    const res = await fetch(`http://127.0.0.1:${config.port.toString()}/api/health`, {
+      headers: { Origin: 'http://evil.example' },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('access-control-allow-origin')).toBeNull();
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('x-frame-options')).toBe('DENY');
+    expect(res.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(res.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
+  });
 });

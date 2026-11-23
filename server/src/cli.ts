@@ -24,7 +24,6 @@ import {
 import { getCharacterProfiles, watchCharacterProfiles } from './characterProfilesPersistence.js';
 import { startClaudeDirectoryLabels } from './claudeDirectoryLabels.js';
 import type { AssetCache, ReloadAssetsSideEffect } from './clientMessageHandler.js';
-import { startCodexSessions } from './codexSessions.js';
 import {
   getHooksConsent,
   getHooksEnabled,
@@ -51,6 +50,7 @@ import {
   hookProviders,
 } from './providers/index.js';
 import { PixelAgentsServer } from './server.js';
+import { startSessionObservers } from './sessionObservers/index.js';
 import {
   defaultPtyHostSocket,
   ptyHostLogFile,
@@ -85,6 +85,9 @@ export interface CliArgs {
   ptyHost: boolean;
   /** --pty-host-socket: where that process listens (default under ~/.pixel-agents). */
   ptyHostSocket?: string;
+  /** --trust-proxy: trust reverse-proxy identity headers (Tailscale-User-Login,
+   *  X-Forwarded-For) from loopback peers when keying PIN rate limits. */
+  trustProxy: boolean;
 }
 
 /** Thrown by parseArgs on an invalid --port. Kept separate from process.exit so
@@ -99,6 +102,7 @@ export function parseArgs(argv: string[]): CliArgs {
     allowedHosts: [],
     rotateToken: false,
     ptyHost: false,
+    trustProxy: false,
   };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--port' || argv[i] === '-p') {
@@ -133,6 +137,8 @@ export function parseArgs(argv: string[]): CliArgs {
       i++;
     } else if (argv[i] === '--rotate-token') {
       args.rotateToken = true;
+    } else if (argv[i] === '--trust-proxy') {
+      args.trustProxy = true;
     } else if (argv[i] === '--no-terminal') {
       args.terminal = false;
     } else if (argv[i] === '--pty-host') {
@@ -152,6 +158,8 @@ Options:
   --allowed-host <name> Also accept the tokened URL at this host name, e.g. a
                         reverse proxy's (Tailscale Serve). Repeatable. Without
                         it, only localhost and a specific --host are privileged
+  --trust-proxy         Trust proxy client identity headers (Tailscale-User-Login,
+                        X-Forwarded-For) from loopback peers for PIN rate limiting
   --rotate-token        Replace the server token. Every URL that carried the
                         old one (bookmarks, other devices) stops working
   --no-terminal         Disable the embedded terminal (watch agents only; no
@@ -440,6 +448,7 @@ async function main(): Promise<void> {
       packageRoot,
       allowedHosts: args.allowedHosts,
       rotateToken: args.rotateToken,
+      trustProxy: args.trustProxy,
     });
     currentConfig = { port: config.port, token: config.token };
     if (args.rotateToken) {
@@ -521,7 +530,7 @@ async function main(): Promise<void> {
       `\n  Pixel Agents server running at http://${displayHost}:${config.port}/?token=${config.token}\n`,
     );
 
-    const codexSessions = startCodexSessions(store);
+    const sessionObservers = startSessionObservers(store);
     const claudeDirectoryLabels = startClaudeDirectoryLabels(store);
     const agentLifecycle = startAgentLifecycle(store, {
       historyFile: path.join(os.homedir(), PIXEL_AGENTS_DIR, HISTORY_FILE_NAME),
@@ -538,7 +547,7 @@ async function main(): Promise<void> {
       if (shuttingDown) return;
       shuttingDown = true;
       console.log('\nShutting down...');
-      codexSessions.dispose();
+      sessionObservers.dispose();
       claudeDirectoryLabels.dispose();
       agentLifecycle.dispose();
       agentKeyTracker.dispose();

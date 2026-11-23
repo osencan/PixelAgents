@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -11,22 +12,41 @@ export interface JsonFileWatcher {
 const ownWriteMarks = new Map<string, Set<() => void>>();
 
 /**
- * Write `value` to `filePath` atomically (tmp + rename), creating its directory. Every live
- * watcher of the path takes the change as our own, not an external one — unless
- * `reportToWatchers` is set: a write made for a client other than the watcher's (a `/ws`
- * client of the VS Code server) must still reach the watcher, the way another process's
- * would. Throws when the write fails, and then marks nothing (a mark with no write behind it
- * would swallow the next real external change).
+ * Write `value` to `filePath` atomically (unique tmp + rename), creating its
+ * directory with restrictive permissions (default 0o700) and the file with
+ * owner-only permissions (default 0o600). Every live watcher of the path takes
+ * the change as our own, not an external one — unless `reportToWatchers` is
+ * set: a write made for a client other than the watcher's (a `/ws` client of
+ * the VS Code server) must still reach the watcher, the way another process's
+ * would. Throws when the write fails, and then marks nothing (a mark with no
+ * write behind it would swallow the next real external change).
  */
 export function writeJsonAtomic(
   filePath: string,
   value: unknown,
-  { reportToWatchers = false }: { reportToWatchers?: boolean } = {},
+  {
+    reportToWatchers = false,
+    mode = 0o600,
+    dirMode = 0o700,
+  }: { reportToWatchers?: boolean; mode?: number; dirMode?: number } = {},
 ): void {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const tmpPath = filePath + '.tmp';
-  fs.writeFileSync(tmpPath, JSON.stringify(value, null, 2), 'utf-8');
-  fs.renameSync(tmpPath, filePath);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: dirMode });
+  const tmpPath = `${filePath}.${crypto.randomBytes(6).toString('hex')}.tmp`;
+  try {
+    fs.writeFileSync(tmpPath, JSON.stringify(value, null, 2), {
+      encoding: 'utf-8',
+      mode,
+      flag: 'wx',
+    });
+    fs.renameSync(tmpPath, filePath);
+  } catch (err) {
+    try {
+      fs.rmSync(tmpPath, { force: true });
+    } catch {
+      /* best-effort cleanup */
+    }
+    throw err;
+  }
   if (reportToWatchers) return;
   for (const mark of ownWriteMarks.get(filePath) ?? []) mark();
 }

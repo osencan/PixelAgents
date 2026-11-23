@@ -58,7 +58,14 @@ async function main(): Promise<void> {
   }
 
   const eventName = (data.hook_event_name as string | undefined) ?? '?';
-  const sid = (data.session_id as string | undefined)?.slice(0, 8) ?? '?';
+  // Grok Build runs the hooks in ~/.claude/settings.json too, with its own
+  // camelCase payload (`sessionId`, no `session_id`). The server would drop
+  // it; stop here so no Grok event is posted or asked a permission decision.
+  if (typeof data.session_id !== 'string') {
+    hookDebug(`exit reason=no-session-id event=${eventName}`);
+    process.exit(0);
+  }
+  const sid = (data.session_id as string).slice(0, 8);
 
   // Multi-server fan-out (D4): deliver to every live server in the registry,
   // or the single legacy server.json when the registry has no live entries.

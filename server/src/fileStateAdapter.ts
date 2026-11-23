@@ -13,6 +13,7 @@
  * agent IDs and seat mappings.
  */
 
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -131,15 +132,20 @@ export class FileStateAdapter implements StateAdapter {
 
   private writeState(state: AdapterState): void {
     const dir = path.dirname(this.stateFilePath);
+    const tmpPath = `${this.stateFilePath}.${crypto.randomBytes(6).toString('hex')}.tmp`;
     try {
       if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+        fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
       }
       const json = JSON.stringify(state, null, 2);
-      const tmpPath = this.stateFilePath + '.tmp';
-      fs.writeFileSync(tmpPath, json, 'utf-8');
+      fs.writeFileSync(tmpPath, json, { encoding: 'utf-8', mode: 0o600, flag: 'wx' });
       fs.renameSync(tmpPath, this.stateFilePath);
     } catch (err) {
+      try {
+        fs.rmSync(tmpPath, { force: true });
+      } catch {
+        /* ignore */
+      }
       console.error('[Pixel Agents] Failed to write adapter state:', err);
     }
   }

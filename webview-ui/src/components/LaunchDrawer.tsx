@@ -4,7 +4,15 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { LAUNCH_DRAWER_PENCIL_GAP_PX } from '../constants.js';
 import type { Directory } from '../hooks/useExtensionMessages.js';
 import { useLongPress } from '../hooks/useLongPress.js';
+import {
+  canDeleteDirectories,
+  canEditDirectories,
+  useControlVersion,
+} from '../office/controlAccess.js';
+import { isBrowserRuntime } from '../runtime.js';
+import { transport } from '../transport/index.js';
 import { DirectoryCharacterStrip } from './DirectoryCharacterStrip.js';
+import { Button } from './ui/Button.js';
 import { Dropdown, DropdownItem } from './ui/Dropdown.js';
 import { PixelIcon } from './ui/PixelIcon.js';
 
@@ -68,6 +76,19 @@ export function LaunchDrawer({
   className = '',
 }: LaunchDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
+  // Adding or editing a Directory names a folder on the host, so the server
+  // takes it from the host's own browser only, or from devices unlocked with
+  // the PIN once the host allows it; VS Code is always the host.
+  useControlVersion();
+  const hostEdits = !isBrowserRuntime || canEditDirectories();
+  const deletes = !isBrowserRuntime || canDeleteDirectories();
+  // The Directory waiting for its delete to be confirmed (pinned at the top).
+  const [confirmDelete, setConfirmDelete] = useState<Directory | null>(null);
+  const deleteDirectory = (directory: Directory) => {
+    transport.send({ type: 'removeDirectory', path: directory.path });
+    setConfirmDelete(null);
+    setPencilRow(null);
+  };
   // The row whose pencil shows: the pencil hangs outside the drawer's right
   // border, level with the row. Kept until another row (or `+ Directory`) is
   // hovered, a scroll moves the rows, or the drawer closes — not on leaving
@@ -80,7 +101,10 @@ export function LaunchDrawer({
   );
 
   useEffect(() => {
-    if (!isOpen) setPencilRow(null);
+    if (!isOpen) {
+      setPencilRow(null);
+      setConfirmDelete(null);
+    }
   }, [isOpen]);
 
   // Where the pencil goes, re-measured whenever its row or the drawer changes
@@ -111,7 +135,7 @@ export function LaunchDrawer({
   }, [pencilRow]);
 
   const showPencil = (directory: Directory, row: HTMLElement) => {
-    setPencilRow(directory.source === 'user' ? { directory, row } : null);
+    setPencilRow((hostEdits || deletes) && directory.source === 'user' ? { directory, row } : null);
   };
   const pencil = pencilRow && pencilBox ? { directory: pencilRow.directory, ...pencilBox } : null;
 
@@ -137,9 +161,42 @@ export function LaunchDrawer({
           className="shrink-0 border-b-2 border-border menu-item menu-item-last"
           onMouseEnter={() => setPencilRow(null)}
         >
-          <DropdownItem onClick={onAddDirectory} className="text-base text-accent-bright">
-            + Directory
-          </DropdownItem>
+          {confirmDelete ? (
+            // Deleting only forgets the entry (agents running there keep
+            // running), but its default characters and settings go with it.
+            <div
+              role="alertdialog"
+              aria-label={`Delete ${confirmDelete.name}?`}
+              className="flex flex-col gap-4 px-12 py-4 max-w-240 text-sm leading-tight"
+            >
+              <span>
+                Delete <span className="text-text">{confirmDelete.name}</span>? Agents running there
+                keep running.
+              </span>
+              <span className="flex items-center gap-4">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-danger!"
+                  onClick={() => deleteDirectory(confirmDelete)}
+                >
+                  Delete
+                </Button>
+                <Button size="sm" onClick={() => setConfirmDelete(null)}>
+                  Cancel
+                </Button>
+              </span>
+            </div>
+          ) : hostEdits ? (
+            <DropdownItem onClick={onAddDirectory} className="text-base text-accent-bright">
+              + Directory
+            </DropdownItem>
+          ) : (
+            <div className="px-12 py-4 max-w-200 text-sm text-text-muted leading-tight">
+              Only the computer running Pixel Agents can add Directories (it can allow unlocked
+              devices in Settings → Agent controls).
+            </div>
+          )}
         </div>
         <div
           className="min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain pixel-scrollbar menu-stagger-up"
@@ -153,6 +210,12 @@ export function LaunchDrawer({
               showCharacters={!pick}
               onSelect={select}
               onEditDirectory={onEditDirectory}
+              editable={hostEdits && directory.source === 'user'}
+              onDelete={
+                deletes && directory.source === 'user'
+                  ? () => setConfirmDelete(directory)
+                  : undefined
+              }
               onHover={showPencil}
             />
           ))}
@@ -171,16 +234,28 @@ export function LaunchDrawer({
             height: pencil.height,
             paddingLeft: LAUNCH_DRAWER_PENCIL_GAP_PX,
           }}
-          className="absolute flex pointer-coarse:hidden"
+          className="absolute flex gap-4 pointer-coarse:hidden"
         >
-          <button
-            onClick={() => onEditDirectory(pencil.directory)}
-            aria-label={`Edit ${pencil.directory.name}`}
-            title="Edit directory"
-            className="flex items-center px-8 bg-bg border-2 border-border rounded-none shadow-pixel cursor-pointer leading-none text-text-muted hover:text-text"
-          >
-            <PixelIcon name="pencil" />
-          </button>
+          {hostEdits && (
+            <button
+              onClick={() => onEditDirectory(pencil.directory)}
+              aria-label={`Edit ${pencil.directory.name}`}
+              title="Edit directory"
+              className="flex items-center px-8 bg-bg border-2 border-border rounded-none shadow-pixel cursor-pointer leading-none text-text-muted hover:text-text"
+            >
+              <PixelIcon name="pencil" />
+            </button>
+          )}
+          {deletes && (
+            <button
+              onClick={() => setConfirmDelete(pencil.directory)}
+              aria-label={`Delete ${pencil.directory.name}`}
+              title="Delete directory"
+              className="flex items-center px-8 bg-bg border-2 border-border rounded-none shadow-pixel cursor-pointer leading-none text-text-muted hover:text-danger"
+            >
+              <PixelIcon name="close" />
+            </button>
+          )}
         </div>
       )}
     </Dropdown>
@@ -195,6 +270,10 @@ interface DirectoryRowProps {
   showCharacters: boolean;
   onSelect: (directory: Directory, palette?: number) => void;
   onEditDirectory: (directory: Directory) => void;
+  /** A user row this browser may edit (long press, pencil). */
+  editable: boolean;
+  /** Ask to delete this row (touch: its own × button; a mouse gets it beside the pencil). */
+  onDelete?: () => void;
   /** Hovered or keyboard-focused: show this row's pencil beside the drawer. */
   onHover: (directory: Directory, row: HTMLElement) => void;
 }
@@ -205,9 +284,10 @@ function DirectoryRow({
   showCharacters,
   onSelect,
   onEditDirectory,
+  editable,
+  onDelete,
   onHover,
 }: DirectoryRowProps) {
-  const editable = directory.source === 'user';
   // A long press opens the edit modal (touch only: a mouse gets the pencil).
   const longPress = useLongPress(() => onEditDirectory(directory), editable);
 
@@ -256,6 +336,20 @@ function DirectoryRow({
         <span onClick={() => launch()} className="shrink-0 flex items-center pr-12 cursor-pointer">
           <DirectoryCharacterStrip directory={directory} onPick={(palette) => launch(palette)} />
         </span>
+      )}
+      {onDelete && (
+        // Touch has no hover tab: the × lives on the row. Its own press, never a launch.
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          onTouchStart={(e) => e.stopPropagation()}
+          aria-label={`Delete ${directory.name}`}
+          className="hidden pointer-coarse:flex shrink-0 items-center px-10 text-text-muted hover:text-danger"
+        >
+          <PixelIcon name="close" />
+        </button>
       )}
     </div>
   );

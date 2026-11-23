@@ -81,6 +81,9 @@ export class PixelAgentsServer {
      *  the old one. Refused while another standalone server is running: it
      *  would keep honouring the old token until it restarts. */
     rotateToken?: boolean;
+    /** Trust reverse-proxy client identity headers from loopback peers when
+     *  keying PIN rate limits (--trust-proxy). */
+    trustProxy?: boolean;
   }): Promise<ServerConfig> {
     const embedded = options?.embedded ?? true;
     const wantsSpa = !embedded;
@@ -149,6 +152,7 @@ export class PixelAgentsServer {
       ptyManager: options?.ptyManager,
       packageRoot: options?.packageRoot,
       allowedHosts: standalone?.allowedHosts,
+      trustProxy: options?.trustProxy,
     });
 
     this.app = app;
@@ -201,18 +205,23 @@ export class PixelAgentsServer {
     return path.join(os.homedir(), SERVER_JSON_DIR, SERVER_JSON_NAME);
   }
 
-  /** Write server.json atomically (tmp + rename) with mode 0o600. */
+  /** Write server.json atomically (unique tmp + rename) with mode 0o600. */
   private writeServerJson(config: ServerConfig): void {
     const filePath = this.getServerJsonPath();
     const dir = path.dirname(filePath);
+    const tmpPath = `${filePath}.${crypto.randomBytes(6).toString('hex')}.tmp`;
     try {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
       }
-      const tmpPath = filePath + '.tmp';
-      fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2), { mode: 0o600 });
+      fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2), { mode: 0o600, flag: 'wx' });
       fs.renameSync(tmpPath, filePath);
     } catch (e) {
+      try {
+        fs.rmSync(tmpPath, { force: true });
+      } catch {
+        /* ignore */
+      }
       console.error(`[Pixel Agents] Failed to write server.json: ${e}`);
     }
   }
@@ -296,18 +305,23 @@ export class PixelAgentsServer {
     return live;
   }
 
-  /** Write this server's registry entry atomically (tmp + rename) with mode 0o600. */
+  /** Write this server's registry entry atomically (unique tmp + rename) with mode 0o600. */
   private writeRegistryEntry(config: ServerConfig): void {
     const dir = this.getRegistryDir();
+    const filePath = this.getRegistryFilePath(config);
+    const tmpPath = `${filePath}.${crypto.randomBytes(6).toString('hex')}.tmp`;
     try {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
       }
-      const filePath = this.getRegistryFilePath(config);
-      const tmpPath = `${filePath}.tmp`;
-      fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2), { mode: 0o600 });
+      fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2), { mode: 0o600, flag: 'wx' });
       fs.renameSync(tmpPath, filePath);
     } catch (e) {
+      try {
+        fs.rmSync(tmpPath, { force: true });
+      } catch {
+        /* ignore */
+      }
       console.error(`[Pixel Agents] Failed to write registry entry: ${e}`);
     }
   }

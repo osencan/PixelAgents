@@ -13,6 +13,9 @@ describe('agent filter', () => {
   it('reads the project out of Claude and Codex labels', () => {
     expect(projectOfLabel('Website')).toBe('Website');
     expect(projectOfLabel('Codex · site (clients) · subagent')).toBe('site (clients)');
+    expect(projectOfLabel('Gemini · site · subagent')).toBe('site');
+    expect(projectOfLabel('Grok · ApiServer')).toBe('ApiServer');
+    expect(projectOfLabel('Antigravity · source')).toBe('source');
     expect(projectOfLabel(undefined)).toBe('Unknown project');
   });
 

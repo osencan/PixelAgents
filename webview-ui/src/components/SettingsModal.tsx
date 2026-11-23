@@ -279,10 +279,16 @@ export function SettingsModal({
         )}
         {/* This fork never launches agents with permission checks skipped (the
           server refuses it), so the upstream toggle is replaced by a note. */}
-        {tokened && (
+        {tokened ? (
           <div className="px-10 py-6 border-y-2 border-border">
             <ControlsSection />
           </div>
+        ) : (
+          <span className="px-10 py-6 border-y-2 border-border text-sm text-text-muted leading-tight">
+            View only: this page was opened without its access link. Open the link the computer
+            running Pixel Agents printed when it started (it ends in ?token=…), then unlock Agent
+            controls here with the PIN.
+          </span>
         )}
         <span className="text-sm text-text-muted px-4 leading-tight">
           Agents launched here always ask for permission (skip-permissions is disabled in this

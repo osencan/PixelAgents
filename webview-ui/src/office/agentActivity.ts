@@ -61,9 +61,20 @@ export function pendingApprovalTool(
   return open.find((t) => t.permissionWait) ?? (hasPermissionBubble ? open[0] : undefined);
 }
 
-/** Provider name from the label the server gives Codex characters. */
+/** CLIs the server watches through their logs; their labels start "<name> · "
+ *  (server/src/sessionObservers/observer.ts). Every other agent is Claude's. */
+export const OBSERVED_PROVIDER_NAMES = ['Codex', 'Gemini', 'Grok', 'Antigravity'] as const;
+
+/** The provider prefix of an observed agent's label ("Gemini · "), if any. */
+export function providerPrefix(directoryName: string | undefined): string | undefined {
+  return OBSERVED_PROVIDER_NAMES.map((name) => `${name} · `).find((prefix) =>
+    directoryName?.startsWith(prefix),
+  );
+}
+
+/** Provider name from the label the server gives each character. */
 export function providerName(directoryName: string | undefined): string {
-  return directoryName?.startsWith('Codex') ? 'Codex' : 'Claude';
+  return providerPrefix(directoryName)?.slice(0, -' · '.length) ?? 'Claude';
 }
 
 /**

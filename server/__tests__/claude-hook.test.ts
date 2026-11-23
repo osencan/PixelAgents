@@ -133,6 +133,24 @@ describe('claude-hook.js integration', () => {
   });
 
   // 5. Script exits 0 on invalid stdin
+  // Grok Build runs the hooks in ~/.claude/settings.json with its own payload.
+  itBuilt('posts nothing for a payload without session_id (Grok Build)', async () => {
+    const server = await startRecordingServer();
+    writeServerJson(server.port, 'tok');
+    const { code, stdout } = await runHookScript(
+      JSON.stringify({
+        hook_event_name: 'PermissionRequest',
+        hookEventName: 'PermissionRequest',
+        sessionId: 'grok-session',
+        toolName: 'run_terminal_command',
+      }),
+    );
+    server.close();
+    expect(code).toBe(0);
+    expect(stdout).toBe('');
+    expect(server.received).toHaveLength(0);
+  });
+
   itBuilt('exits 0 on invalid stdin', async () => {
     writeServerJson(9999, 'tok');
     const { code } = await runHookScript('not json at all!!!');

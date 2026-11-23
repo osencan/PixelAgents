@@ -34,6 +34,12 @@ describe('agent activity', () => {
 
   it('derives the provider from the character label', () => {
     expect(providerName('Codex · Website')).toBe('Codex');
+    expect(providerName('Gemini · Website · subagent')).toBe('Gemini');
+    expect(providerName('Grok · ApiServer')).toBe('Grok');
+    expect(providerName('Antigravity · source')).toBe('Antigravity');
+    // A Claude project merely named like a provider stays Claude's.
+    expect(providerName('Codexify')).toBe('Claude');
+    expect(providerName('Gemini')).toBe('Claude');
     expect(providerName('ApiServer')).toBe('Claude');
     expect(providerName(undefined)).toBe('Claude');
   });

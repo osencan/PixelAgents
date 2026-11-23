@@ -166,6 +166,7 @@ components:
         - $ref: '#/components/schemas/UnlockControl'
         - $ref: '#/components/schemas/LockControl'
         - $ref: '#/components/schemas/SetControlPin'
+        - $ref: '#/components/schemas/SetRemoteDirectories'
         - $ref: '#/components/schemas/SetApprovalOptIn'
         - $ref: '#/components/schemas/ApprovePermission'
         - $ref: '#/components/schemas/SaveCharacterProfiles'
@@ -338,6 +339,9 @@ components:
           type: boolean
         pinSet:
           type: boolean
+        remoteDirectories:
+          type: boolean
+          description: Devices unlocked with the PIN may add and edit Directories (SetRemoteDirectories).
         ticket:
           type: string
         error:
@@ -1789,6 +1793,20 @@ components:
           const: setControlPin
         pin:
           type: string
+
+    SetRemoteDirectories:
+      description: >-
+        Whether devices unlocked with the control PIN may add and edit
+        Directories (folders on this machine agents can be launched in). Off by
+        default; accepted only from the server's machine.
+      type: object
+      additionalProperties: false
+      required: [type, enabled]
+      properties:
+        type:
+          const: setRemoteDirectories
+        enabled:
+          type: boolean
 
     ApprovePermission:
       description: Answer a held permission request (control clients only).

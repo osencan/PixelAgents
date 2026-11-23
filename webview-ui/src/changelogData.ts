@@ -29,6 +29,29 @@ export const SPONSOR_URL = 'https://github.com/sponsors/osencan';
 
 export const changelogEntries: ChangelogEntry[] = [
   {
+    version: '2.3',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'Gemini CLI, Antigravity and Grok Build sessions show in the office, read-only, next to Claude Code and Codex',
+          'Delete a Directory straight from the launch drawer (×, with a confirmation)',
+          'Settings → Agent controls: optionally let devices unlocked with the PIN add Directories (off by default, with a warning)',
+        ],
+      },
+      {
+        title: 'Security',
+        items: [
+          'Other devices need the control PIN for Directories, recent conversations, diagnostics and Watch All',
+          'Only the computer running Pixel Agents adds or edits Directories unless it allows unlocked devices',
+          'Stricter browser security policy, message and file size limits, owner-only settings files',
+          'A page opened without its access link says so in Settings',
+        ],
+      },
+    ],
+    contributors: [],
+  },
+  {
     version: '2.2',
     sections: [
       {

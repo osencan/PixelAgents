@@ -33,6 +33,9 @@ import {
   isPinSet,
   issueTicket,
   isTicketValid,
+  onControlPolicyChange,
+  pinRateLimitKey,
+  remoteDirectoriesAllowed,
   revokeTicket,
   setControlSocket,
   touchTicket,
@@ -95,6 +98,9 @@ export interface HttpServerOptions {
    *  privileged standalone handshake may arrive under -- e.g. a reverse proxy's
    *  public name. See wsAuth.privilegedHostnames. */
   allowedHosts?: readonly string[];
+  /** Trust reverse-proxy client identity headers (Tailscale-User-Login,
+   *  X-Forwarded-For) from loopback peers when keying PIN rate limits. */
+  trustProxy?: boolean;
 }
 
 /** Result of createHttpServer(). */
@@ -102,6 +108,22 @@ export interface HttpServerHandle {
   app: FastifyInstance;
   port: number;
 }
+
+/** Maximum single WebSocket frame size (2 MiB; ws defaults to 100 MiB). */
+export const WS_MAX_PAYLOAD_BYTES = 2 * 1024 * 1024;
+
+const STANDALONE_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self' ws: wss:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
 
 const startTime = Date.now();
 
@@ -121,8 +143,20 @@ export async function createHttpServer(options: HttpServerOptions): Promise<Http
     bodyLimit: MAX_HOOK_BODY_SIZE,
   });
 
-  await app.register(fastifyCors, { origin: true });
-  await app.register(fastifyWebsocket);
+  // Same-origin only: never reflect arbitrary cross-origin headers (would expose
+  // loopback /api/health details to unrelated web pages).
+  await app.register(fastifyCors, { origin: false });
+  await app.register(fastifyWebsocket, { options: { maxPayload: WS_MAX_PAYLOAD_BYTES } });
+
+  app.addHook('onSend', async (_request, reply, payload) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('X-Frame-Options', 'DENY');
+    reply.header('Referrer-Policy', 'no-referrer');
+    if (!options.embedded) {
+      reply.header('Content-Security-Policy', STANDALONE_CSP);
+    }
+    return payload;
+  });
 
   // Static SPA serving (standalone mode only)
   if (!options.embedded && options.staticDir) {
@@ -368,6 +402,7 @@ function registerWebSocketRoute(
         control,
         local,
         pinSet: isPinSet(),
+        remoteDirectories: remoteDirectoriesAllowed(),
         ticket,
         error: unlockError,
         lockedUntil,
@@ -383,8 +418,10 @@ function registerWebSocketRoute(
       unwatchTicket?.();
       unwatchTicket = undefined;
       if (!control || local) return;
+      const expired = ticket;
       control = false;
       ticket = undefined;
+      revokeTicket(expired);
       sendControlAccess();
     };
     // Idle expiry has no event of its own; check for it now and then.
@@ -399,9 +436,11 @@ function registerWebSocketRoute(
       lapse();
       return false;
     };
-    // Every message to this socket goes through here: read-only viewers get
-    // tool activity as broad categories, never file names or commands.
+    // Every message to this socket goes through here: read-only viewers never
+    // receive privileged message types (neither broadcasts nor direct replies),
+    // and get tool activity as broad categories, never file names or commands.
     const send = (message: Record<string, unknown>) => {
+      if (!privileged && PRIVILEGED_BROADCAST_TYPES.has(String(message.type))) return;
       // The full request behind an approval is for connections that may answer it.
       if (message.type === 'agentPermissionPending' && !controlNow() && 'detail' in message) {
         const { detail: _detail, ...rest } = message;
@@ -429,6 +468,8 @@ function registerWebSocketRoute(
     store.on('agentRemoved', onAgentRemoved);
     store.on('broadcast', onBroadcast);
     if (!options.embedded) sendControlAccess();
+    // A policy changed on the host (remote Directories): every page redraws.
+    const unwatchPolicy = options.embedded ? undefined : onControlPolicyChange(sendControlAccess);
 
     // Handle incoming client messages
     socket.on('message', (data: Buffer | string) => {
@@ -445,7 +486,14 @@ function registerWebSocketRoute(
           if (local) {
             control = true;
           } else {
-            const verdict = verifyControlPin(msg.pin, request.socket.remoteAddress ?? '');
+            const verdict = verifyControlPin(
+              msg.pin,
+              pinRateLimitKey(
+                request.socket.remoteAddress,
+                request.headers,
+                options.trustProxy === true,
+              ),
+            );
             unlockError = verdict.ok ? undefined : verdict.reason;
             lockedUntil = verdict.ok ? undefined : verdict.lockedUntil;
             if (verdict.ok) {
@@ -499,6 +547,7 @@ function registerWebSocketRoute(
 
     socket.on('close', () => {
       clearInterval(expiryTimer);
+      unwatchPolicy?.();
       unwatchTicket?.();
       // The unlock belongs to this page; its terminals end with it.
       if (!local) revokeTicket(ticket);

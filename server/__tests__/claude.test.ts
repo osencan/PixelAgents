@@ -77,6 +77,17 @@ describe('claudeProvider', () => {
     it('returns null when session_id is missing', () => {
       expect(claudeProvider.normalizeHookEvent({ hook_event_name: 'Stop' })).toBeNull();
     });
+    it("returns null for Grok Build's camelCase payload (it runs Claude's hooks too)", () => {
+      expect(
+        claudeProvider.normalizeHookEvent({
+          hookEventName: 'PreToolUse',
+          hook_event_name: 'PreToolUse',
+          sessionId: '0195c3a0-0000-7000-8000-000000000000',
+          toolName: 'run_terminal_command',
+          toolInput: { command: 'ls' },
+        }),
+      ).toBeNull();
+    });
     it('returns null for unknown hook event names', () => {
       expect(
         claudeProvider.normalizeHookEvent({

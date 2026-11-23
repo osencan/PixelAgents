@@ -41,6 +41,10 @@ export const PRIVILEGED_BROADCAST_TYPES: ReadonlySet<string> = new Set([
   // Todos, edited files and titles; uncommitted changes (workItems.ts, workingTree.ts).
   'agentWorkItems',
   'workingTreeChanges',
+  // Host filesystem paths and terminal lifecycle belong to privileged sockets only.
+  'directoriesLoaded',
+  'terminalSessionOpened',
+  'terminalSessionClosed',
 ]);
 
 let cache: Record<string, StoredUsage> | null = null;

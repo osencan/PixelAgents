@@ -35,6 +35,20 @@ export type { PetManifest, PetSpriteFrames } from '../../core/src/assets/types.j
 
 import { LAYOUT_REVISION_KEY } from './constants.js';
 
+/** Upper bound on a single furniture or character PNG file size (2 MiB). */
+const MAX_ASSET_PNG_SIZE = 2 * 1024 * 1024;
+
+/** True when `candidate` resolves (following symlinks) inside `baseDir`. */
+function isRealPathWithin(baseDir: string, candidate: string): boolean {
+  try {
+    const realBase = fs.realpathSync(baseDir);
+    const realTarget = fs.realpathSync(candidate);
+    return realTarget === realBase || realTarget.startsWith(realBase + path.sep);
+  } catch {
+    return false;
+  }
+}
+
 export type { FurnitureAsset };
 
 export interface LoadedAssets {
@@ -154,6 +168,19 @@ export async function loadFurnitureAssets(workspaceRoot: string): Promise<Loaded
             }
             if (!fs.existsSync(assetPath)) {
               console.warn(`  ⚠️  Asset file not found: ${asset.file} in ${dir.name}`);
+              continue;
+            }
+            if (!isRealPathWithin(itemDir, assetPath)) {
+              console.warn(
+                `  [AssetLoader] Skipping asset resolving outside directory: ${asset.file}`,
+              );
+              continue;
+            }
+            const stat = fs.statSync(assetPath);
+            if (!stat.isFile() || stat.size > MAX_ASSET_PNG_SIZE) {
+              console.warn(
+                `  [AssetLoader] Skipping oversized or non-file asset ${asset.file}: ${stat.size} bytes`,
+              );
               continue;
             }
 
@@ -502,11 +529,21 @@ export async function loadExternalCharacterSprites(
       const filePath = path.join(charDir, filename);
       const resolvedFile = path.resolve(filePath);
       const resolvedDir = path.resolve(charDir);
-      if (!resolvedFile.startsWith(resolvedDir + path.sep) && resolvedFile !== resolvedDir) {
+      if (
+        (!resolvedFile.startsWith(resolvedDir + path.sep) && resolvedFile !== resolvedDir) ||
+        !isRealPathWithin(charDir, filePath)
+      ) {
         console.warn(`  [AssetLoader] Skipping character with path outside directory: ${filename}`);
         continue;
       }
       try {
+        const stat = fs.statSync(filePath);
+        if (!stat.isFile() || stat.size > MAX_ASSET_PNG_SIZE) {
+          console.warn(
+            `  [AssetLoader] Skipping oversized character ${filename}: ${stat.size} bytes`,
+          );
+          continue;
+        }
         const pngBuffer = fs.readFileSync(filePath);
         characters.push(decodeCharacterPng(pngBuffer));
       } catch (err) {
@@ -632,14 +669,19 @@ export async function loadPetSprites(assetsRoot: string): Promise<LoadedPetSprit
     for (const dirName of petDirs) {
       const subDir = path.join(petDir, dirName);
       const resolvedSub = path.resolve(subDir);
-      if (!resolvedSub.startsWith(resolvedDir + path.sep)) {
+      if (!resolvedSub.startsWith(resolvedDir + path.sep) || !isRealPathWithin(petDir, subDir)) {
         console.warn(`  [AssetLoader] Skipping pet with path outside directory: ${dirName}`);
         continue;
       }
 
       const manifestPath = path.join(subDir, 'manifest.json');
       const pngPath = path.join(subDir, 'pet.png');
-      if (!fs.existsSync(manifestPath) || !fs.existsSync(pngPath)) {
+      if (
+        !fs.existsSync(manifestPath) ||
+        !fs.existsSync(pngPath) ||
+        !isRealPathWithin(subDir, manifestPath) ||
+        !isRealPathWithin(subDir, pngPath)
+      ) {
         console.warn(`  [AssetLoader] Skipping pet ${dirName}: missing manifest.json or pet.png`);
         continue;
       }
@@ -723,7 +765,7 @@ export async function loadExternalPetSprites(
     for (const dirName of petDirs) {
       const subDir = path.join(petDir, dirName);
       const resolvedSub = path.resolve(subDir);
-      if (!resolvedSub.startsWith(resolvedDir + path.sep)) {
+      if (!resolvedSub.startsWith(resolvedDir + path.sep) || !isRealPathWithin(petDir, subDir)) {
         console.warn(
           `  [AssetLoader] Skipping external pet with path outside directory: ${dirName}`,
         );
@@ -732,7 +774,12 @@ export async function loadExternalPetSprites(
 
       const manifestPath = path.join(subDir, 'manifest.json');
       const pngPath = path.join(subDir, 'pet.png');
-      if (!fs.existsSync(manifestPath) || !fs.existsSync(pngPath)) {
+      if (
+        !fs.existsSync(manifestPath) ||
+        !fs.existsSync(pngPath) ||
+        !isRealPathWithin(subDir, manifestPath) ||
+        !isRealPathWithin(subDir, pngPath)
+      ) {
         console.warn(
           `  [AssetLoader] Skipping external pet ${dirName}: missing manifest.json or pet.png`,
         );

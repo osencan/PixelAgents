@@ -1,6 +1,6 @@
 # What's new in Pixel Agents 2.0
 
-Pixel Agents 2.0 is built for **watching** many Claude Code and Codex sessions from a browser, including from other devices on your LAN, and for **steering** them through a guarded control surface: approving permission requests, starting agents and typing into them. Control is limited to the server's machine, or to devices unlocked with a PIN, and every control action is audited.
+Pixel Agents 2.0 is built for **watching** many Claude Code, Codex, Gemini, Antigravity and Grok sessions from a browser, including from other devices on your LAN, and for **steering** them through a guarded control surface: approving permission requests, starting agents and typing into them. Control is limited to the server's machine, or to devices unlocked with a PIN, and every control action is audited.
 
 It keeps the 1.x office and continues from v1.6.0 as its own line; it will not be merged back. Credits are [at the end](#credits).
 
@@ -9,6 +9,7 @@ It keeps the 1.x office and continues from v1.6.0 as its own line; it will not b
 **More agents, correctly identified**
 
 - Read-only **Codex** support: local Codex rollouts appear as characters (no Codex hooks or settings are changed). Codex subagents link to their parent.
+- Read-only **Gemini CLI**, **Antigravity** and **Grok Build** support the same way, from their own session logs (one shared observer, `server/src/sessionObservers/`).
 - Each session has a stable identity, separate from its project label, so labels never swap characters. Project names follow the session's real working directory: git root, symlinks resolved, worktrees grouped with their main repository, and same-named projects told apart (`site (clients)` vs `site (personal)`). You can pin a project display name for every viewer.
 - Hooks reach a server bound to a LAN address (`--host 192.168.x.y`), not only loopback.
 

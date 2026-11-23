@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.3.0
+
+- **Gemini CLI and Grok Build sessions** appear in the office next to Claude Code and Codex, read-only, from their own session logs. Their characters show whether they are thinking, reading, editing or running a command, and the Agent filter lists them as providers. Nothing is written to `~/.gemini` or `~/.grok`, and they can't be started from the office yet. Turn either off with `PIXEL_AGENTS_GEMINI=0` or `PIXEL_AGENTS_GROK=0`.
+- **Antigravity conversations** (Google's agent IDE, its 2.0 app and its CLI) appear the same way, read from each conversation's transcript, with the folder taken from its database. This needs Node 22.5 or later.
+- Grok Build also runs the hooks in `~/.claude/settings.json`. Pixel Agents' hook now ignores those calls instead of posting them.
+- Grok support is written from xAI's documentation and hasn't yet been checked against a real Grok session.
+- **Directories can be deleted from the launch drawer:** an × beside the pencil (or on the row, on a phone) asks before removing it. Any device unlocked with the PIN may delete.
+- **Other devices: what changes.** A device other than the computer running Pixel Agents now needs the control PIN to list Directories and recent conversations, search them, see diagnostics, or change Watch All. Open the access link the server prints (it ends in `?token=…`), then unlock in Settings → Agent controls.
+- **Adding Directories from other devices is off by default.** Only the computer running Pixel Agents can add or edit them, unless it turns on Settings → Agent controls → "Unlocked devices can add Directories", which warns about the risk first. Other devices say why instead of showing "+ Directory".
+- **Security hardening:** other devices need the control PIN to see Directories, recent conversations and diagnostics, or to change Watch All. A page opened without its access link says so in Settings. The browser page gets a Content-Security-Policy and same-origin-only requests. WebSocket messages are capped. Malformed PINs are rejected before hashing. Layouts, room mappings and asset files have size limits. Settings files are written owner-only. New `--trust-proxy` keys PIN rate limits by the proxy's client (Tailscale login or X-Forwarded-For) for a local reverse proxy.
+
 ## v2.2.0
 
 - **Layout → Offices:** pick a ready-made office: Four Rooms, Two Rooms, Blue Office or Severance. Picking one replaces the floor plan, furniture and rooms, keeps your pets and room settings, and can be undone (or reset to the last save).

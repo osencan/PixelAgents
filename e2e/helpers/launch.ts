@@ -362,8 +362,12 @@ export async function launchVSCode(
   const args = [
     // Load our extension in dev mode (this overrides the installed version)
     `--extensionDevelopmentPath=${REPO_ROOT}`,
-    // Disable all other extensions so tests are isolated
-    '--disable-extensions',
+    // An empty extensions folder of its own isolates the tests from whatever
+    // the machine has installed. Not --disable-extensions: with extensions
+    // installed in ~/.vscode/extensions, VS Code 1.147 then offers to reload
+    // and enable them, and the prompt holds the focus the command palette
+    // needs (every runCommand timed out until it was accepted).
+    `--extensions-dir=${path.join(tmpBase, 'extensions')}`,
     // Isolated user-data (settings, state, etc.)
     `--user-data-dir=${userDataDir}`,
     // Skip interactive prompts

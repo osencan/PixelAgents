@@ -555,6 +555,7 @@ export function useExtensionMessages(
           control: msg.control === true,
           local: msg.local === true,
           pinSet: msg.pinSet === true,
+          remoteDirectories: msg.remoteDirectories === true,
           ticket: msg.ticket as string | undefined,
           error: msg.error as ControlAccess['error'],
           lockedUntil: msg.lockedUntil as number | undefined,

@@ -7,9 +7,8 @@
 import { useSyncExternalStore } from 'react';
 
 import { AGENT_FILTER_STORAGE_KEY } from '../constants.js';
-import { providerName } from './agentActivity.js';
+import { providerName, providerPrefix } from './agentActivity.js';
 
-const CODEX_PREFIX = 'Codex · ';
 const SUBAGENT_SUFFIX = ' · subagent';
 
 interface Stored {
@@ -45,10 +44,10 @@ function changed(): void {
   for (const l of listeners) l();
 }
 
-/** The project part of a character label ("Codex · site · subagent" -> "site"). */
+/** The project part of a character label ("Gemini · site · subagent" -> "site"). */
 export function projectOfLabel(directoryName: string | undefined): string {
   let name = directoryName ?? '';
-  if (name.startsWith(CODEX_PREFIX)) name = name.slice(CODEX_PREFIX.length);
+  name = name.slice(providerPrefix(name)?.length ?? 0);
   if (name.endsWith(SUBAGENT_SUFFIX)) name = name.slice(0, -SUBAGENT_SUFFIX.length);
   return name || 'Unknown project';
 }

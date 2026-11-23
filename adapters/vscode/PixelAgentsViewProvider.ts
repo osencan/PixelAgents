@@ -502,13 +502,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             // path; no directoryPath leaves launchNewTerminal's own fallback —
             // the first workspace folder — exactly as it was.
             directoryPath: message.directoryPath as string | undefined,
-            // Permission posture is a persisted per-host setting, never a
-            // per-launch field: the webview sends only where to launch (and,
-            // picked from the roster, which character).
-            bypassPermissions: this.adapter.getSetting<boolean>(
-              GLOBAL_KEY_BYPASS_PERMISSIONS,
-              false,
-            ),
+            // This fork never skips permission checks, whatever an older config says.
+            bypassPermissions: false,
             palette: picked,
           },
         );
@@ -629,13 +624,11 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
       } else if (message.type === 'setBypassPermissions') {
         if (typeof message.enabled === 'boolean') {
-          this.adapter.setSetting(GLOBAL_KEY_BYPASS_PERMISSIONS, message.enabled);
-          // Through the store, not straight to the webview: the store's
-          // broadcast also reaches offices on the embedded server's /ws, which
-          // launch under this same posture.
+          // This fork never launches agents with permission checks skipped.
+          this.adapter.setSetting(GLOBAL_KEY_BYPASS_PERMISSIONS, false);
           this.store.broadcast({
             type: 'bypassPermissionsUpdated',
-            enabled: this.adapter.getSetting<boolean>(GLOBAL_KEY_BYPASS_PERMISSIONS, false),
+            enabled: false,
           });
         }
       } else if (message.type === 'saveAreaMappings') {
@@ -726,10 +719,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         const hooksEnabled = getHooksEnabled(claudeProvider.id);
         const hooksInfoShown = this.adapter.getSetting<boolean>(GLOBAL_KEY_HOOKS_INFO_SHOWN, false);
         const showAreas = this.adapter.getSetting<boolean>(GLOBAL_KEY_SHOW_AREAS, false);
-        const bypassPermissions = this.adapter.getSetting<boolean>(
-          GLOBAL_KEY_BYPASS_PERMISSIONS,
-          false,
-        );
+        // This fork never skips permission checks, whatever an older config says.
+        const bypassPermissions = false;
         const showHostDirectories = this.adapter.getSetting<boolean>(
           GLOBAL_KEY_SHOW_HOST_DIRECTORIES,
           false,
@@ -1231,6 +1222,20 @@ function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): s
     const webviewUri = webview.asWebviewUri(fileUri);
     return `${attr}="${webviewUri}"`;
   });
+
+  const csp = [
+    "default-src 'none'",
+    `script-src ${webview.cspSource}`,
+    `style-src ${webview.cspSource} 'unsafe-inline'`,
+    `img-src ${webview.cspSource} data: blob:`,
+    `font-src ${webview.cspSource} data:`,
+    `connect-src ${webview.cspSource}`,
+    `worker-src ${webview.cspSource} blob:`,
+  ].join('; ');
+  html = html.replace(
+    '<head>',
+    `<head>\n    <meta http-equiv="Content-Security-Policy" content="${csp}" />`,
+  );
 
   return html;
 }

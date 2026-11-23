@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { getControlAccess, useControlVersion } from '../office/controlAccess.js';
 import { transport } from '../transport/index.js';
 import { Button } from './ui/Button.js';
+import { Checkbox } from './ui/Checkbox.js';
 
 const INPUT_CLASS = 'text-xs py-1 px-2 bg-bg border-2 border-border rounded-none text-text w-100';
 
@@ -22,6 +23,12 @@ export function ControlsSection() {
   useControlVersion();
   const access = getControlAccess();
   const [pin, setPin] = useState('');
+  // Turning remote Directories on waits for the warning to be accepted.
+  const [confirmRemoteDirs, setConfirmRemoteDirs] = useState(false);
+  const setRemoteDirectories = (enabled: boolean) => {
+    transport.send({ type: 'setRemoteDirectories', enabled });
+    setConfirmRemoteDirs(false);
+  };
 
   const submit = (type: 'unlockControl' | 'setControlPin') => {
     transport.send({ type, pin });
@@ -60,6 +67,33 @@ export function ControlsSection() {
               {access.pinSet ? 'Change' : 'Set'}
             </Button>
           </span>
+          <Checkbox
+            label="Unlocked devices can add Directories"
+            title="Lets a device unlocked with the PIN add and edit Directories, and so launch agents in any folder on this computer"
+            checked={access.remoteDirectories || confirmRemoteDirs}
+            onChange={() => {
+              if (access.remoteDirectories) setRemoteDirectories(false);
+              else setConfirmRemoteDirs(!confirmRemoteDirs);
+            }}
+          />
+          {confirmRemoteDirs && !access.remoteDirectories && (
+            <span className="flex flex-col gap-4 px-10">
+              <span className="leading-tight">
+                Security risk: a device unlocked with the PIN could then pick any folder on this
+                computer and start agents in it, with your user's access to everything there. Anyone
+                who learns the PIN (and over plain HTTP it crosses your network unencrypted) gets
+                the same. Only allow this on a network and with devices you trust.
+              </span>
+              <span className="flex items-center gap-4">
+                <Button size="sm" variant="accent" onClick={() => setRemoteDirectories(true)}>
+                  I accept the risk, allow
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setConfirmRemoteDirs(false)}>
+                  Cancel
+                </Button>
+              </span>
+            </span>
+          )}
         </>
       ) : access.control ? (
         <>

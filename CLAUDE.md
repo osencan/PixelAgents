@@ -2,7 +2,7 @@
 
 Pixel art office where AI agents (Claude Code terminals today, any tool tomorrow) become animated characters. Ships as a **VS Code extension** and an **`npx pixel-agents` standalone CLI** from the same source tree.
 
-**This repository is Pixel Agents 2.x** ([osencan/PixelAgents](https://github.com/osencan/PixelAgents)), its own line continued from upstream v1.6.0 and never merged back. 2.x adds Codex sessions, reported/guessed lifecycles, agent controls (PIN-unlocked approvals, hiring agents), rooms with a purpose and more: see `FORK.md`. Its browser app is on npm as **`@osencan/pixel-agents`** (from 2.1.2; command `pixel-agents`) and also runs from source (`node dist/cli.js`); the VS Code extension is not published to the Marketplace or Open VSX. The identities below that name `pablodelucca.pixel-agents` or the unscoped `pixel-agents` package describe the original 1.x project.
+**This repository is Pixel Agents 2.x** ([osencan/PixelAgents](https://github.com/osencan/PixelAgents)), its own line continued from upstream v1.6.0 and never merged back. 2.x adds read-only Codex, Gemini CLI, Antigravity and Grok Build sessions (`server/src/sessionObservers/`), reported/guessed lifecycles, agent controls (PIN-unlocked approvals, hiring agents), rooms with a purpose and more: see `FORK.md`. Its browser app is on npm as **`@osencan/pixel-agents`** (from 2.1.2; command `pixel-agents`) and also runs from source (`node dist/cli.js`); the VS Code extension is not published to the Marketplace or Open VSX. The identities below that name `pablodelucca.pixel-agents` or the unscoped `pixel-agents` package describe the original 1.x project.
 
 `CONTEXT.md` is the canonical glossary — read it for what terms like Agent, Sub-agent, Teammate, Lead, Adopt, or Headless agent mean here, and use its vocabulary in code, comments, and docs.
 
@@ -47,6 +47,13 @@ server/                              Lifecycle runtime + Fastify HTTP/WS server
     providers/hook/consentGate.ts    Provider-agnostic consent POLICY: when to ask (hooksConsentRequest per provider) and what an answer means (consentActionFor(choice, {installed, consent}) — see docs/adr/0001)
     providers/hook/consentExecutor.ts Provider-agnostic consent EXECUTION: applyConsentChoice(providerId, choice, ConsentEffects) runs the six actions in one order for both surfaces, and SERIALIZES answers per process across ALL providers
     providers/index.ts               Provider registry (claudeProvider + the hookProviders list the consent gate loops over)
+    sessionObservers/                Read-only CLIs watched through their own logs (standalone only): Codex, Gemini CLI, Grok Build, Antigravity
+      observer.ts                    ObservedSession (phase + category, never content), SessionObserver, OBSERVED_PROVIDER_NAMES / isObservedProvider (labels "<Name> · project", not persisted)
+      jsonlTail.ts                   Append-only log reader (offset, partial lines, inode/truncation reset)
+      officeBridge.ts                Sessions → characters: sessionId `<provider>:<id>`, compatibility tool Read/Edit + `observedCategory` (the lifecycle reads it), recent/expire windows, optional quiet-turn → waiting
+      codex.ts, gemini.ts, grok.ts   One reducer + file listing each (Gemini: rewritten .json and $set .jsonl, cwd from .project_root / projects.json; Grok: ACP updates.jsonl, cwd from summary.json / .cwd / folder name)
+      antigravity.ts                 Antigravity IDE / 2.0 / CLI: brain/<id>/.system_generated/logs/transcript.jsonl steps (tools logged when called); cwd from conversations/<id>.db via node:sqlite (Node 22.5+, else not shown)
+      index.ts                       SESSION_OBSERVERS + startSessionObservers (one 1 s poll loop per observer; PIXEL_AGENTS_<NAME>=0 turns one off)
     agentPersistence.ts              What of an agent survives a reload, and what a restored agent starts from (both surfaces)
     backgroundSpawns.ts              A lead's live background spawns: tool id → task id, their rules (launchSpawn, completionNotice, classifySpawn) and persisted form
     agentRuntime.ts                  Lifecycle core: timers, scanners, HookEventHandler, SessionRouter, DismissalTracker

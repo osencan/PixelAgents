@@ -36,10 +36,25 @@ function worktreeMainRoot(dir: string, gitFile: string): string | undefined {
   try {
     const match = /^gitdir:\s*(.+)$/m.exec(fs.readFileSync(gitFile, 'utf8'));
     if (!match) return undefined;
-    const gitDir = path.resolve(dir, match[1].trim());
+    const gitDir = realPath(path.resolve(dir, match[1].trim()));
     const commonDir = fs.readFileSync(path.join(gitDir, 'commondir'), 'utf8').trim();
     const mainGitDir = realPath(path.resolve(gitDir, commonDir));
-    return path.basename(mainGitDir) === '.git' ? path.dirname(mainGitDir) : undefined;
+    if (path.basename(mainGitDir) !== '.git') return undefined;
+    // The worktree's gitdir must actually live inside `<mainGitDir>/worktrees/`,
+    // so an untrusted directory with a crafted `.git` file cannot spoof an
+    // approval-opted-in repository root.
+    const worktreesDir = path.join(mainGitDir, 'worktrees');
+    if (!gitDir.startsWith(worktreesDir + path.sep)) return undefined;
+    // When git's back-pointer (`<gitDir>/gitdir`) is present, confirm it points
+    // back to this worktree's `.git` file rather than another directory.
+    const backPointerPath = path.join(gitDir, 'gitdir');
+    if (fs.existsSync(backPointerPath)) {
+      const backPointer = realPath(
+        path.resolve(gitDir, fs.readFileSync(backPointerPath, 'utf8').trim()),
+      );
+      if (backPointer !== realPath(gitFile)) return undefined;
+    }
+    return path.dirname(mainGitDir);
   } catch {
     return undefined;
   }

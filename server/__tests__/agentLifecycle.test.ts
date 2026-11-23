@@ -73,9 +73,16 @@ describe('deriveLifecycle', () => {
     expect(deriveLifecycle(withTool(agent({ hookDelivered: false }), 'Read')).observed).toBe(false);
   });
 
-  it('reads Codex categories from its status text', () => {
+  it('reads observed sessions from their category, not the compatibility tool name', () => {
     const codex = withTool(agent({ providerId: 'codex' }), 'Edit', 'Codex: running a command');
+    codex.observedCategory = 'running';
     expect(deriveLifecycle(codex).lifecycle).toBe('running');
+    const gemini = withTool(agent({ providerId: 'gemini' }), 'Read', 'Gemini: reading / searching');
+    gemini.observedCategory = 'reading';
+    expect(deriveLifecycle(gemini).lifecycle).toBe('reading');
+    const grok = withTool(agent({ providerId: 'grok' }), 'Edit', 'Grok: using a tool');
+    grok.observedCategory = 'tool';
+    expect(deriveLifecycle(grok).lifecycle).toBe('working');
   });
 });
 

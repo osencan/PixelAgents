@@ -13,6 +13,8 @@ import type { AgentLifecycleState } from '../../core/src/messages.js';
 import { agentKey } from './agentMessages.js';
 import type { AgentStateStore } from './agentStateStore.js';
 import { type HistoryByKey, readHistoryFile, writeHistoryFile } from './historyFile.js';
+import type { ObservedCategory } from './sessionObservers/observer.js';
+import { isObservedProvider } from './sessionObservers/observer.js';
 import type { AgentState } from './types.js';
 
 /** Silence (mid-turn, no tool running) after which the state is unknown. */
@@ -58,14 +60,14 @@ export interface LifecycleView {
   permissionSuspected: boolean;
 }
 
-/** Codex sends a compatibility tool name; its status text carries the category. */
-function codexCategory(status: string): AgentLifecycleState {
-  if (/reading|searching/i.test(status)) return 'reading';
-  if (/editing/i.test(status)) return 'editing';
-  if (/running a command/i.test(status)) return 'running';
-  if (/using a tool/i.test(status)) return 'working';
-  return 'thinking';
-}
+/** An observed session's category, as a lifecycle state. */
+const OBSERVED_LIFECYCLE: Record<ObservedCategory, AgentLifecycleState> = {
+  thinking: 'thinking',
+  reading: 'reading',
+  editing: 'editing',
+  running: 'running',
+  tool: 'working',
+};
 
 function toolCategory(agent: AgentState): AgentLifecycleState | undefined {
   // Background spawns stay in activeToolIds while their helper runs, across
@@ -73,8 +75,9 @@ function toolCategory(agent: AgentState): AgentLifecycleState | undefined {
   const toolIds = [...agent.activeToolIds].filter((id) => !agent.backgroundSpawns.has(id));
   const latest = toolIds.at(-1);
   if (latest === undefined) return undefined;
-  if (agent.providerId === 'codex')
-    return codexCategory(agent.activeToolStatuses.get(latest) ?? '');
+  // Observed sessions send a compatibility tool name; the category is kept apart.
+  if (isObservedProvider(agent.providerId))
+    return OBSERVED_LIFECYCLE[agent.observedCategory ?? 'thinking'];
   const name = agent.activeToolNames.get(latest) ?? '';
   if (READING_TOOLS.has(name)) return 'reading';
   if (EDITING_TOOLS.has(name)) return 'editing';
@@ -88,7 +91,7 @@ export function deriveLifecycle(
   /** Last provider event seen for the agent (hooks don't touch lastDataAt). */
   lastEventAt = 0,
 ): LifecycleView {
-  // Hooks (Claude) and the Codex log observer report events; a transcript-only
+  // Hooks (Claude) and the session log observers report events; a transcript-only
   // Claude session is reconstructed from the transcript, so it is inferred.
   const observed = agent.hookDelivered === true;
   const suspected = agent.permissionSuspected === true;

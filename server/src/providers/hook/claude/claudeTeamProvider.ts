@@ -351,7 +351,12 @@ export const claudeTeamProvider: TeamProvider = {
   },
 
   getTeamMembers(teamName) {
-    const configPath = path.join(os.homedir(), '.claude', 'teams', teamName, 'config.json');
+    if (!/^[A-Za-z0-9._-]+$/.test(teamName) || teamName === '.' || teamName === '..') {
+      return null;
+    }
+    const teamsRoot = path.resolve(os.homedir(), '.claude', 'teams');
+    const configPath = path.resolve(teamsRoot, teamName, 'config.json');
+    if (!configPath.startsWith(teamsRoot + path.sep)) return null;
     let raw: string;
     try {
       raw = fs.readFileSync(configPath, 'utf-8');

@@ -7,6 +7,7 @@ import {
   restoreBackgroundSpawns,
   stillRunningSpawns,
 } from './backgroundSpawns.js';
+import { isObservedProvider } from './sessionObservers/observer.js';
 import { getHookProvider } from './transcriptParser.js';
 import type { AgentState } from './types.js';
 
@@ -21,9 +22,9 @@ import type { AgentState } from './types.js';
  *  Persisting one would resurrect an immortal character whose completion
  *  signal never comes. */
 export function toPersistedAgent(agent: AgentState): PersistedAgent | null {
-  // Codex characters are reconstructed from their read-only rollout observer.
+  // Observed characters (Codex, Gemini, Grok) are rebuilt from their read-only logs.
   // Forks are re-adopted from their sidecar while they still run.
-  if (agent.spawnToolUseId || agent.isFork || agent.providerId === 'codex') return null;
+  if (agent.spawnToolUseId || agent.isFork || isObservedProvider(agent.providerId)) return null;
   return {
     id: agent.id,
     sessionId: agent.sessionId,

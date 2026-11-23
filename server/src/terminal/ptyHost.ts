@@ -193,7 +193,19 @@ export async function startPtyHost(options: PtyHostOptions): Promise<PtyHost> {
  * think they own the agents.
  */
 async function claimSocketPath(socketPath: string): Promise<void> {
-  fs.mkdirSync(path.dirname(socketPath), { recursive: true, mode: 0o700 });
+  const dir = path.dirname(socketPath);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  // Refuse a group/world-accessible socket directory (e.g. /tmp directly):
+  // server.listen creates the socket under the process umask before chmod 0600,
+  // so the parent directory itself must be owner-only to prevent connect races.
+  if (process.platform !== 'win32') {
+    const dirMode = fs.statSync(dir).mode & 0o777;
+    if ((dirMode & 0o077) !== 0) {
+      throw new Error(
+        `PTY host socket directory ${dir} must be owner-only (mode 0700), got ${dirMode.toString(8)}`,
+      );
+    }
+  }
   if (!fs.existsSync(socketPath)) return;
   const alive = await new Promise<boolean>((resolve) => {
     const probe = net.connect(socketPath);

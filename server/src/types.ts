@@ -1,6 +1,7 @@
 import type * as vscode from 'vscode';
 
 import type { BackgroundSpawns } from './backgroundSpawns.js';
+import type { ObservedCategory } from './sessionObservers/observer.js';
 
 export interface AgentState {
   id: number;
@@ -39,7 +40,7 @@ export interface AgentState {
   hadToolsInTurn: boolean;
   /** Directory name — the agent's origin label (only set for multi-root workspaces) */
   directoryName?: string;
-  /** Latest working directory a provider reported outside a transcript (Codex). */
+  /** Latest working directory a provider reported outside a transcript (session observers). */
   projectCwd?: string;
   /** Canonical project root (projectIdentity): label metadata, never identity. */
   projectRoot?: string;
@@ -57,6 +58,8 @@ export interface AgentState {
   hooksOnly?: boolean;
   /** Provider that created this agent (defaults to 'claude') */
   providerId?: string;
+  /** What an observed session (Codex, Gemini, Grok) is doing while its turn is active. */
+  observedCategory?: ObservedCategory;
   /** Set when SessionEnd(reason=clear) fires; cleared when SessionStart(source=clear) reassigns */
   pendingClear?: boolean;
   /** Hook-generated tool ID for PreToolUse/PostToolUse correlation */

@@ -54,26 +54,40 @@ function sanitizePngBuffer(buf: Buffer): Buffer {
   return buf;
 }
 
+/** Upper bound on a single sprite's width or height (pixels) to prevent memory exhaustion. */
+const MAX_SPRITE_DIMENSION = 512;
+
 /**
  * Convert a PNG buffer to SpriteData (2D array of hex color strings).
  * '' = transparent, '#RRGGBB' = opaque, '#RRGGBBAA' = semi-transparent.
  */
 export function pngToSpriteData(pngBuffer: Buffer, width: number, height: number): string[][] {
+  const safeW = Number.isInteger(width) && width > 0 && width <= MAX_SPRITE_DIMENSION ? width : 0;
+  const safeH =
+    Number.isInteger(height) && height > 0 && height <= MAX_SPRITE_DIMENSION ? height : 0;
+  if (safeW === 0 || safeH === 0) {
+    console.warn(`Invalid sprite dimensions: ${width}×${height}`);
+    return [];
+  }
   try {
     const png = PNG.sync.read(sanitizePngBuffer(pngBuffer));
 
-    if (png.width !== width || png.height !== height) {
+    if (png.width !== safeW || png.height !== safeH) {
       console.warn(
-        `PNG dimensions mismatch: expected ${width}×${height}, got ${png.width}×${png.height}`,
+        `PNG dimensions mismatch: expected ${safeW}×${safeH}, got ${png.width}×${png.height}`,
       );
     }
 
     const sprite: string[][] = [];
     const data = png.data;
 
-    for (let y = 0; y < height; y++) {
+    for (let y = 0; y < safeH; y++) {
       const row: string[] = [];
-      for (let x = 0; x < width; x++) {
+      for (let x = 0; x < safeW; x++) {
+        if (x >= png.width || y >= png.height) {
+          row.push('');
+          continue;
+        }
         const pixelIndex = (y * png.width + x) * 4;
         const r = data[pixelIndex];
         const g = data[pixelIndex + 1];
@@ -88,8 +102,8 @@ export function pngToSpriteData(pngBuffer: Buffer, width: number, height: number
   } catch (err) {
     console.warn(`Failed to parse PNG: ${err instanceof Error ? err.message : err}`);
     const sprite: string[][] = [];
-    for (let y = 0; y < height; y++) {
-      sprite.push(new Array(width).fill(''));
+    for (let y = 0; y < safeH; y++) {
+      sprite.push(new Array(safeW).fill(''));
     }
     return sprite;
   }

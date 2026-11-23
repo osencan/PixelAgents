@@ -6,10 +6,7 @@ import { expect, test } from '../../fixtures/standalone';
 import type { TestHooksWindow } from '../../helpers/editor';
 import { sendHookEvent, sessionStartStartup } from '../../helpers/hooks';
 import { buildSeedLayout } from '../../helpers/layout-seed';
-import {
-  expectOverlayCount,
-  expectOverlayVisible,
-} from '../../helpers/office';
+import { expectOverlayCount, expectOverlayVisible } from '../../helpers/office';
 import { openSettingsModal, setSettings } from '../../helpers/webview';
 
 // The DebugView diagnostics block polls every 2s (see DebugView.tsx); allow a
@@ -118,7 +115,7 @@ test.describe('Standalone / UI', () => {
     await modal
       .locator('input[placeholder="Absolute asset directory path"]')
       .fill(standalone.workspaceDir);
-    await modal.locator('button', { hasText: 'Add' }).click();
+    await modal.getByRole('button', { name: 'Add', exact: true }).click();
 
     // getByTitle matches the title attribute literally; a raw CSS
     // [title="..."] selector would mis-parse the backslashes in a Windows path

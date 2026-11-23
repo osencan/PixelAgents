@@ -7,12 +7,8 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { toPersistedAgent } from '../src/agentPersistence.js';
 import { createAgentState } from '../src/agentState.js';
 import { AgentStateStore } from '../src/agentStateStore.js';
-import {
-  CodexOfficeBridge,
-  CodexTail,
-  emptyCodexSession,
-  reduceCodexRecord,
-} from '../src/codexSessions.js';
+import { CodexTail, emptyCodexSession, reduceCodexRecord } from '../src/sessionObservers/codex.js';
+import { ObserverOfficeBridge } from '../src/sessionObservers/officeBridge.js';
 vi.mock('../src/paletteAssigner.js', () => ({ assignPaletteIfNeeded: () => {} }));
 const temps: string[] = [];
 afterEach(async () => {
@@ -41,13 +37,13 @@ describe('Codex lifecycle normalization', () => {
         arguments: 'PRIVATE',
       }),
     );
-    expect(s.reading).toBe(true);
+    expect(s.category).toBe('reading');
     reduceCodexRecord(
       s,
       record('response_item', { type: 'function_call_output', call_id: 'a', output: 'PRIVATE' }),
     );
     expect(s.phase).toBe('active');
-    expect(s.activity).toBe('Codex: working');
+    expect(s.category).toBe('thinking');
     reduceCodexRecord(
       s,
       record('event_msg', { type: 'task_complete', last_agent_message: 'PRIVATE' }),
@@ -62,7 +58,7 @@ describe('Codex lifecycle normalization', () => {
       s,
       record('response_item', { type: 'custom_tool_call', name: 'apply_patch', call_id: 'b' }),
     );
-    expect(s.activity).toBe('Codex: editing');
+    expect(s.category).toBe('editing');
     reduceCodexRecord(s, record('event_msg', { type: 'turn_aborted' }));
     expect(s.phase).toBe('idle');
     reduceCodexRecord(s, record('event_msg', { type: 'task_started' }));
@@ -79,7 +75,7 @@ describe('Codex lifecycle normalization', () => {
       record('response_item', { type: 'function_call', name: 'read_file', call_id: 'b' }),
     );
     reduceCodexRecord(s, record('response_item', { type: 'function_call_output', call_id: 'b' }));
-    expect(s.activity).toBe('Codex: running a command');
+    expect(s.category).toBe('running');
     expect(s.phase).toBe('active');
   });
 });
@@ -136,12 +132,13 @@ describe('office integration', () => {
     );
     const messages: unknown[] = [];
     store.on('broadcast', (m) => messages.push(m));
-    const bridge = new CodexOfficeBridge(store);
+    const bridge = new ObserverOfficeBridge(store, 'codex', 'Codex');
     const s = session();
     bridge.sync(s);
     const agent = [...store.values()].find((a) => a.providerId === 'codex')!;
     expect(agent.directoryName).toBe('Codex · ApiServer');
     expect(agent.turnActive).toBe(true);
+    expect(agent.activeToolStatuses.get(`codex-activity-${agent.id}`)).toBe('Codex: working');
     expect(toPersistedAgent(agent)).toBeNull();
     reduceCodexRecord(s, record('event_msg', { type: 'task_complete' }));
     bridge.sync(s);
@@ -159,7 +156,7 @@ describe('office integration', () => {
   });
   test('does not resurrect old sessions and expires silent tracked sessions', () => {
     const store = new AgentStateStore();
-    const bridge = new CodexOfficeBridge(store);
+    const bridge = new ObserverOfficeBridge(store, 'codex', 'Codex');
     const s = session();
     bridge.sync(s, s.updated + 6 * 60_000);
     expect(store.size).toBe(0);
@@ -170,7 +167,7 @@ describe('office integration', () => {
   });
   test('a subagent session gets its own labelled character', () => {
     const store = new AgentStateStore();
-    const bridge = new CodexOfficeBridge(store);
+    const bridge = new ObserverOfficeBridge(store, 'codex', 'Codex');
     const s = session();
     s.parent = 'parent';
     bridge.sync(s);
@@ -180,7 +177,7 @@ describe('office integration', () => {
   });
   test('a subagent links to its parent only when the parent session is in the office', () => {
     const store = new AgentStateStore();
-    const bridge = new CodexOfficeBridge(store);
+    const bridge = new ObserverOfficeBridge(store, 'codex', 'Codex');
     const parent = session();
     bridge.sync(parent);
     const parentAgent = [...store.values()][0];

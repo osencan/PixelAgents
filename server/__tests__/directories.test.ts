@@ -43,14 +43,20 @@ describe('directories', () => {
     } else {
       process.env.HOME = originalHome;
     }
+    try {
+      fs.chmodSync(path.join(tempHome, '.pixel-agents'), 0o700);
+    } catch {
+      /* directory may not have been created */
+    }
     fs.rmSync(tempHome, { recursive: true, force: true });
   });
 
-  /** Make the next config write fail: the atomic write goes through a `.tmp`
-   *  sibling, and a directory squatting on that name makes it throw. */
+  /** Make the next config write fail by making ~/.pixel-agents read-only so
+   *  the atomic temp file cannot be created inside it (while reads still work). */
   function blockConfigWrites(): void {
     const dir = path.join(tempHome, '.pixel-agents');
-    fs.mkdirSync(path.join(dir, 'config.json.tmp'), { recursive: true });
+    fs.mkdirSync(dir, { recursive: true });
+    fs.chmodSync(dir, 0o500);
   }
 
   // ── validation ───────────────────────────────────────────────

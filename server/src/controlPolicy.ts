@@ -41,6 +41,8 @@ interface ControlFile {
   pin?: StoredPin;
   /** Project roots whose permission requests may be answered from a browser. */
   approvalProjects: string[];
+  /** Devices unlocked with the PIN may add and edit Directories (off by default). */
+  remoteDirectories?: boolean;
 }
 
 function controlDir(): string {
@@ -63,6 +65,7 @@ function read(): ControlFile {
       approvalProjects: Array.isArray(raw.approvalProjects)
         ? raw.approvalProjects.filter((p): p is string => typeof p === 'string')
         : [],
+      remoteDirectories: raw.remoteDirectories === true,
     };
   } catch {
     cache = { approvalProjects: [] };
@@ -73,13 +76,7 @@ function read(): ControlFile {
 function write(next: ControlFile): void {
   cache = next;
   const file = path.join(controlDir(), 'control.json');
-  writeJsonAtomic(file, next);
-  // It holds the PIN's hash: owner-only, like the token and the audit log.
-  try {
-    fs.chmodSync(file, 0o600);
-  } catch {
-    /* best effort: the hash is salted scrypt either way */
-  }
+  writeJsonAtomic(file, next, { mode: 0o600, dirMode: 0o700 });
 }
 
 // ── Where a connection comes from ─────────────────────────────
@@ -144,6 +141,24 @@ export function isLocalRequest(
 
 // ── PIN ───────────────────────────────────────────────────────
 
+const policyListeners = new Set<() => void>();
+
+/** Called whenever a policy every connection reports (controlAccess) changes. */
+export function onControlPolicyChange(listener: () => void): () => void {
+  policyListeners.add(listener);
+  return () => policyListeners.delete(listener);
+}
+
+export function remoteDirectoriesAllowed(): boolean {
+  return read().remoteDirectories === true;
+}
+
+/** Let devices unlocked with the PIN add and edit Directories, or stop them. */
+export function setRemoteDirectories(enabled: boolean): void {
+  write({ ...read(), remoteDirectories: enabled });
+  for (const listener of policyListeners) listener();
+}
+
 export function isPinSet(): boolean {
   return read().pin !== undefined;
 }
@@ -182,8 +197,41 @@ function expandIPv6(address: string): string[] {
 /** IPv6 addresses count per /64 (one device can hold many); IPv4 per address. */
 function failureKey(address: string): string {
   const a = normalizeAddress(address);
+  if (a.startsWith('ts:')) return a;
   if (!a.includes(':')) return a;
   return expandIPv6(a).slice(0, 4).join(':') + '::/64';
+}
+
+/**
+ * Derive the rate-limit key for PIN attempts. When running behind a trusted
+ * local reverse proxy (explicitly opted in via `--trust-proxy` AND peer is this
+ * machine), prefer Tailscale's authenticated login header or the right-most
+ * non-local X-Forwarded-For hop so all proxied devices don't collapse onto
+ * `127.0.0.1`. Forwarding headers from non-local peers are never trusted.
+ */
+export function pinRateLimitKey(
+  peerAddress: string | undefined,
+  headers: Record<string, string | string[] | undefined>,
+  trustProxy = false,
+): string {
+  if (trustProxy && isLocalAddress(peerAddress)) {
+    const tsLogin = headers['tailscale-user-login'];
+    if (typeof tsLogin === 'string' && tsLogin.trim()) {
+      return `ts:${tsLogin.trim().toLowerCase()}`;
+    }
+    const xff = headers['x-forwarded-for'];
+    const rawXff = Array.isArray(xff) ? xff.join(',') : xff;
+    if (typeof rawXff === 'string' && rawXff.trim()) {
+      const hops = rawXff
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      for (let i = hops.length - 1; i >= 0; i--) {
+        if (!isLocalAddress(hops[i])) return hops[i];
+      }
+    }
+  }
+  return peerAddress ?? '';
 }
 
 /** Addresses (failure keys) that have unlocked with the right PIN since start:
@@ -208,13 +256,20 @@ export function verifyControlPin(pin: unknown, address: string, now = Date.now()
   const stored = read().pin;
   if (!stored) return { ok: false, reason: 'no-pin' };
   const expected = Buffer.from(stored.hash, 'hex');
-  const actual =
-    typeof pin === 'string'
-      ? crypto.scryptSync(pin, Buffer.from(stored.salt, 'hex'), SCRYPT_KEY_LENGTH)
-      : Buffer.alloc(expected.length);
-  if (typeof pin === 'string' && crypto.timingSafeEqual(actual, expected)) {
+  // Reject malformed / oversized PINs before invoking scryptSync so an attacker
+  // cannot pass a multi-megabyte string to freeze the event loop.
+  const validShape = isValidPinShape(pin);
+  const actual = validShape
+    ? crypto.scryptSync(pin, Buffer.from(stored.salt, 'hex'), SCRYPT_KEY_LENGTH)
+    : Buffer.alloc(expected.length);
+  if (validShape && crypto.timingSafeEqual(actual, expected)) {
     failures.delete(key);
-    knownGood.add(key);
+    // Never whitelist a local/loopback address (a reverse proxy's peer IP when
+    // --trust-proxy is off), or one valid unlock would disable the global pause
+    // for every proxied client.
+    if (!isLocalAddress(address)) {
+      knownGood.add(key);
+    }
     return { ok: true };
   }
   globalFailures = [...globalFailures.filter((t) => now - t < CONTROL_PIN_LOCKOUT_MS), now];
@@ -375,7 +430,7 @@ export function auditControl(entry: {
   project?: string;
 }): void {
   try {
-    fs.mkdirSync(controlDir(), { recursive: true });
+    fs.mkdirSync(controlDir(), { recursive: true, mode: 0o700 });
     fs.appendFileSync(
       path.join(controlDir(), 'control-audit.jsonl'),
       JSON.stringify({ at: new Date().toISOString(), ...entry }) + '\n',
@@ -389,6 +444,7 @@ export function auditControl(entry: {
 /** Tests only. */
 export function resetControlPolicyForTests(): void {
   cache = undefined;
+  policyListeners.clear();
   failures.clear();
   controlSockets.clear();
   revokeWatchers.clear();

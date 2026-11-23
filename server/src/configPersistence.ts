@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -389,16 +390,21 @@ export function resetHooksConfig(): void {
 export function writeConfig(config: PixelAgentsConfig): boolean {
   const filePath = getConfigFilePath();
   const dir = path.dirname(filePath);
+  const tmpPath = `${filePath}.${crypto.randomBytes(6).toString('hex')}.tmp`;
   try {
     if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     }
     const json = JSON.stringify(config, null, 2);
-    const tmpPath = filePath + '.tmp';
-    fs.writeFileSync(tmpPath, json, 'utf-8');
+    fs.writeFileSync(tmpPath, json, { encoding: 'utf-8', mode: 0o600, flag: 'wx' });
     fs.renameSync(tmpPath, filePath);
     return true;
   } catch (err) {
+    try {
+      fs.rmSync(tmpPath, { force: true });
+    } catch {
+      /* ignore */
+    }
     console.error('[Pixel Agents] Failed to write config file:', err);
     return false;
   }

@@ -5,7 +5,7 @@
 <div align="center">
 
 [![license](https://img.shields.io/github/license/osencan/PixelAgents?color=0183ff&style=flat)](LICENSE)
-[![version](https://img.shields.io/badge/version-2.2.0-0183ff?style=flat)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-2.3.0-0183ff?style=flat)](CHANGELOG.md)
 [![sponsor](https://img.shields.io/badge/sponsor-%E2%99%A5-ea4aaa?style=flat)](https://github.com/sponsors/osencan)
 
 </div>
@@ -18,7 +18,7 @@
 
 Pixel Agents turns the AI coding agents running in your terminals into animated pixel-art characters working in a tiny office. They walk to their desks, type when they're editing, read when they're searching, and light up when they need you.
 
-**Version 2.0** is built for watching and steering many **Claude Code** and **Codex** sessions from a browser, including from your phone over your LAN. It adds honest, reported statuses; a detail panel for every agent; per-browser filtering and hiding; rooms with a purpose; and, behind a PIN, the ability to approve permission requests, start new agents and type into them from the browser.
+**Version 2.0** is built for watching and steering many **Claude Code**, **Codex**, **Gemini CLI**, **Antigravity** and **Grok Build** sessions from a browser, including from your phone over your LAN. It adds honest, reported statuses; a detail panel for every agent; per-browser filtering and hiding; rooms with a purpose; and, behind a PIN, the ability to approve permission requests, start new agents and type into them from the browser.
 
 <!-- Screenshot: the office with several agents, labels and rooms. -->
 
@@ -28,7 +28,7 @@ Pixel Agents turns the AI coding agents running in your terminals into animated 
 
 ### Watching
 
-- **Claude Code and Codex**: Claude sessions are tracked through hooks (with transcripts as a fallback). Local Codex sessions are read from their rollout logs, read-only. Subagents and teammates appear as their own characters, linked to their parent.
+- **Claude Code, Codex, Gemini CLI, Antigravity and Grok Build**: Claude sessions are tracked through hooks (with transcripts as a fallback). Local Codex, Gemini, Antigravity and Grok sessions are read from their own session logs, read-only. Subagents and teammates appear as their own characters, linked to their parent.
 - **Correct identity and project names**: each session keeps its own character. Labels follow the session's real project: git root, symlinks resolved, worktrees grouped with their main repo, same-named projects told apart. You can pin a friendlier name.
 - **Honest statuses**: thinking, planning, reading, editing, running, waiting for permission or for input, idle, or no recent activity. Each is marked **reported** (from a hook or log) or **guessed**. Only a real permission request means "needs approval".
 - **Detail panel**: click a character to see what it's doing, for how long, what it's asking for, this turn's tool steps, its subagents and parent, context use, and recent history.
@@ -67,7 +67,7 @@ Pixel Agents turns the AI coding agents running in your terminals into animated 
 
 ## Requirements
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and signed in. Codex is optional and detected if present.
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and signed in. Codex, Gemini CLI, Antigravity and Grok Build are optional and detected if present. Antigravity needs Node 22.5 or later.
 - Node.js 20 or later
 - macOS, Linux or Windows. Pixel Agents 2.0 is developed and tested on macOS with the **standalone browser app**. The VS Code extension builds from the same source but is untested here.
 
@@ -116,7 +116,7 @@ npm run build
 node dist/cli.js                # takes the same options
 ```
 
-The first time, the browser asks your consent before installing Claude Code hooks into `~/.claude/settings.json`: say yes, then restart any `claude` sessions that were already running (Claude Code reads hooks when a session starts). **Settings → Watch All Sessions** is on by default, so sessions from every project show up; turn it off to see only the folder you started Pixel Agents in. To turn off Codex detection, start with `PIXEL_AGENTS_CODEX=0`.
+The first time, the browser asks your consent before installing Claude Code hooks into `~/.claude/settings.json`: say yes, then restart any `claude` sessions that were already running (Claude Code reads hooks when a session starts). **Settings → Watch All Sessions** is on by default, so sessions from every project show up; turn it off to see only the folder you started Pixel Agents in. To turn off Codex, Gemini, Antigravity or Grok detection, start with `PIXEL_AGENTS_CODEX=0`, `PIXEL_AGENTS_GEMINI=0`, `PIXEL_AGENTS_ANTIGRAVITY=0` or `PIXEL_AGENTS_GROK=0`.
 
 ## The office at a glance
 
@@ -191,6 +191,10 @@ Open the roster from the arrow beside **+** and press a character's pencil (or *
 
 - **Claude hooks** (default): a hook script sends Claude Code events (`SessionStart`, `PreToolUse`, `PermissionRequest`, `Stop`, …) to the running server, which also reads session transcripts under `~/.claude/projects/` for details. For opted-in projects, the hook asks the server for a browser decision on `PermissionRequest` and prints Claude's documented decision output. With no decision, the normal terminal prompt decides.
 - **Codex**: rollout logs under `$CODEX_HOME/sessions` are tailed read-only.
+- **Gemini CLI**: sessions under `~/.gemini/tmp/<project>/chats/` are read read-only (`GEMINI_CLI_HOME` is honored). Gemini records a tool only once it finishes, so a long command shows the step before it; a turn whose log stays quiet for 10 minutes shows as waiting.
+- **Grok Build** (xAI's `grok`): `updates.jsonl` logs under `~/.grok/sessions/` (or `$GROK_HOME`) are tailed read-only; subagents link to their session. Grok Build also runs the hooks in `~/.claude/settings.json`; Pixel Agents' hook ignores those calls.
+- **Antigravity** (Google's agent IDE, its 2.0 app and CLI): each conversation's `transcript.jsonl` under `~/.gemini/antigravity-ide/`, `antigravity/` or `antigravity-cli/` `brain/<id>/.system_generated/logs/` is tailed read-only, and its folder is read from the conversation's database with `node:sqlite` (Node 22.5 or later; on older Node these conversations aren't shown). Tools show as soon as they're called.
+- Observed sessions show which kind of work they are doing (thinking, reading, editing, running a command), never prompts, arguments or output. They can't be launched, approved or resumed from the office.
 - **Statuses** are derived on the server into one lifecycle per agent, replayed on reconnect. The history is metadata only and is kept for 24 hours in `~/.pixel-agents/history.json`.
 - **Tokens used today** come from the same local logs: Claude usage is counted once per message, and Codex's running totals are turned into per-step deltas. Uncommitted changes come from a read-only `git diff --shortstat HEAD` every 15 seconds. Set `PIXEL_AGENTS_USAGE=0` or `PIXEL_AGENTS_GIT_CHANGES=0` to turn either off.
 
