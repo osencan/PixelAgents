@@ -9,6 +9,7 @@
 - **Directories can be deleted from the launch drawer:** an × beside the pencil (or on the row, on a phone) asks before removing it. Any device unlocked with the PIN may delete.
 - **Other devices: what changes.** A device other than the computer running Pixel Agents now needs the control PIN to list Directories and recent conversations, search them, see diagnostics, or change Watch All. Open the access link the server prints (it ends in `?token=…`), then unlock in Settings → Agent controls.
 - **Adding Directories from other devices is off by default.** Only the computer running Pixel Agents can add or edit them, unless it turns on Settings → Agent controls → "Unlocked devices can add Directories", which warns about the risk first. Other devices say why instead of showing "+ Directory".
+- **Layout editor:** Undo, Redo, Save and Reset stay on top of a tall tool panel (the Areas tool with several rooms covered Save in short windows).
 - **Security hardening:** other devices need the control PIN to see Directories, recent conversations and diagnostics, or to change Watch All. A page opened without its access link says so in Settings. The browser page gets a Content-Security-Policy and same-origin-only requests. WebSocket messages are capped. Malformed PINs are rejected before hashing. Layouts, room mappings and asset files have size limits. Settings files are written owner-only. New `--trust-proxy` keys PIN rate limits by the proxy's client (Tailscale login or X-Forwarded-For) for a local reverse proxy.
 
 ## v2.2.0

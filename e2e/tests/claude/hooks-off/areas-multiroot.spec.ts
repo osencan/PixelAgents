@@ -131,7 +131,8 @@ test.describe('Areas (multi-root)', () => {
 
     // Remove it via the card's × button.
     narrator.step('removing "Design" with its card\'s × button');
-    await frame.locator('button[title="Remove area"]').first().click();
+    // A new area's card comes last: the default office already has rooms of its own.
+    await frame.locator('button[title="Remove area"]').last().click();
     await frame.waitForFunction(
       () =>
         !((window as TestHooksWindow).__pixelAgentsTestHooks?.getAreas?.() ?? []).some(
@@ -155,7 +156,7 @@ test.describe('Areas (multi-root)', () => {
 
     // Open the area card's "Add folder…" menu and map the alpha folder.
     narrator.step('opening Engineering\'s "Map a folder…" menu and picking alpha');
-    await frame.locator('button[title*="Map a folder"]').first().click();
+    await frame.locator('button[title*="Map a folder"]').last().click();
     await frame.getByText(ALPHA, { exact: true }).click();
 
     await frame.waitForFunction(
